@@ -1,0 +1,6 @@
+# SwiftPM build artifacts
+.build/
+# Packaged app output
+build/
+# macOS noise
+.DS_Store

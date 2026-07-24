@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(swift --version)",
+      "Bash(sw_vers)",
+      "Bash(chmod +x \"/Users/akhilchandran/Akhil Chandran/Claude/Batteries/build.sh\")",
+      "Bash(\"/Users/akhilchandran/Akhil Chandran/Claude/Batteries/build.sh\")",
+      "Bash(open \"/Users/akhilchandran/Akhil Chandran/Claude/Batteries/build/Batteries.app\")",
+      "Bash(system_profiler SPBluetoothDataType -json)",
+      "Bash(/usr/bin/python3 -c ' *)",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(xcode-select -p)",
+      "Bash(pkill -f \"Batteries.app/Contents/MacOS/Batteries\")",
+      "Read(//usr/local/bin/**)",
+      "Read(//opt/homebrew/Cellar/libimobiledevice/1.4.0/bin/**)",
+      "Bash(system_profiler SPUSBDataType)",
+      "Bash(grep -iA4 \"iphone\\\\|ipad\")",
+      "Bash(/opt/homebrew/bin/idevice_id -l)",
+      "Bash(/opt/homebrew/bin/idevice_id -n)",
+      "Bash(/opt/homebrew/bin/ideviceinfo -u 00008150-000955203C00C01C -k DeviceName)",
+      "Bash(/opt/homebrew/bin/ideviceinfo -u 00008150-000955203C00C01C -k DeviceClass)",
+      "Bash(/opt/homebrew/bin/ideviceinfo -u 00008150-000955203C00C01C -q com.apple.mobile.battery -k BatteryCurrentCapacity)",
+      "Bash(/opt/homebrew/bin/ideviceinfo -u 00008150-000955203C00C01C -q com.apple.mobile.battery -k BatteryIsCharging)",
+      "Bash(/opt/homebrew/bin/idevice_id -l -n)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(./build.sh)",
+      "Bash(open build/Batteries.app)",
+      "Bash(pmset -g batt)",
+      "Bash(swift build *)",
+      "Bash(ioreg -rc AppleSmartBattery)",
+      "Bash(git config *)",
+      "Bash(gh auth *)",
+      "Bash(gh api *)",
+      "Bash(echo \"configured: $\\(git config --global user.name\\) <$\\(git config --global user.email\\)>\")",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}
