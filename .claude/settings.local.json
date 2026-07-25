@@ -34,7 +34,20 @@
       "Bash(echo \"configured: $\\(git config --global user.name\\) <$\\(git config --global user.email\\)>\")",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(gh repo *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(npm -v)",
+      "Bash(npm install *)",
+      "Bash(npm approve-scripts *)",
+      "Bash(npm test *)",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const p=require\\('./node_modules/culori/package.json'\\); console.log\\('version',p.version\\); console.log\\('main',p.main\\); console.log\\('types',p.types\\); console.log\\('exports',JSON.stringify\\(p.exports,null,1\\)\\)\")",
+      "Bash(echo \"EXIT $?\")",
+      "Bash(npx vite *)",
+      "Bash(echo \"TYPECHECK EXIT $?\")",
+      "Bash(SF_TARGET=ui npx vite build)"
     ]
   }
 }

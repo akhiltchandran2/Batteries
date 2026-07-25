@@ -4,3 +4,5 @@
 build/
 # macOS noise
 .DS_Store
+# Unrelated project living in this folder (not part of Batteries)
+system-forge/
