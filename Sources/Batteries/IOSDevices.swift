@@ -64,9 +64,7 @@ enum IOSDevices {
             } else if let cached = lastKnown[udid] {
                 // Device is present but locked — show the last known level.
                 var stale = cached.device
-                let age = RelativeDateTimeFormatter()
-                    .localizedString(for: cached.date, relativeTo: Date())
-                stale.detail = "Last reading \(age) — unlock the device to update"
+                stale.staleSince = cached.date
                 devices.append(stale)
             }
         }

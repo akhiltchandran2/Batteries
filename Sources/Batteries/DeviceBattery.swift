@@ -37,8 +37,14 @@ struct DeviceBattery: Codable {
     var fullyCharged: Bool = false
     /// e.g. "33m until fully charged" or "2h 15m remaining"
     var timeRemaining: String? = nil
-    var detail: String? = nil
     var components: [Component] = []
+    /// Set when this reading is cached rather than fresh — the device is
+    /// present but couldn't be queried right now (e.g. a locked iPhone).
+    /// The percent shown is as of this date, not the current moment.
+    var staleSince: Date? = nil
+    /// Set when the device isn't in the current scan at all but was seen
+    /// recently — rendered dimmed instead of silently disappearing.
+    var unreachableSince: Date? = nil
 }
 
 /// Mac battery health, shown under the header.

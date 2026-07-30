@@ -42,7 +42,10 @@ final class NotificationManager {
         let threshold = Preferences.lowBatteryThreshold
 
         for device in devices {
-            guard let percent = device.percent, !muted.contains(device.id) else { continue }
+            // Skip devices we couldn't freshly read — alerting off a stale
+            // or last-known value risks a wrong or duplicate notification.
+            guard let percent = device.percent, !muted.contains(device.id),
+                  device.unreachableSince == nil, device.staleSince == nil else { continue }
 
             // ── Low battery ──────────────────────────────────────────
             if Preferences.notificationsEnabled {

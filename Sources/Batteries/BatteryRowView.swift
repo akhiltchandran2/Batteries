@@ -13,14 +13,15 @@ final class BatteryRowView: NSView {
          percent: Int?,
          charging: Bool = false,
          showGlyph: Bool = true,
-         detail: String? = nil,
-         isComponent: Bool = false) {
+         isComponent: Bool = false,
+         isMuted: Bool = false) {
         super.init(frame: NSRect(x: 0, y: 0, width: Self.rowWidth,
                                  height: isComponent ? 22 : 28))
-        toolTip = detail
 
         let fontSize: CGFloat = isComponent ? 12 : 13
-        let textColor: NSColor = isComponent ? .secondaryLabelColor : .labelColor
+        let textColor: NSColor = isComponent ? .secondaryLabelColor
+                                : (isMuted ? .tertiaryLabelColor : .labelColor)
+        let dimTint: NSColor = isMuted ? .tertiaryLabelColor : .secondaryLabelColor
 
         let titleLabel = NSTextField(labelWithString: title)
         titleLabel.font = bold ? .systemFont(ofSize: fontSize, weight: .semibold)
@@ -38,7 +39,7 @@ final class BatteryRowView: NSView {
            let image = NSImage(systemSymbolName: icon, accessibilityDescription: nil) {
             let iconView = NSImageView(image: image.withSymbolConfiguration(
                 .init(pointSize: 13, weight: .regular)) ?? image)
-            iconView.contentTintColor = .secondaryLabelColor
+            iconView.contentTintColor = dimTint
             iconView.translatesAutoresizingMaskIntoConstraints = false
             addSubview(iconView)
             NSLayoutConstraint.activate([
@@ -63,7 +64,7 @@ final class BatteryRowView: NSView {
                                accessibilityDescription: nil) {
             let glyphView = NSImageView(image: image.withSymbolConfiguration(
                 .init(pointSize: isComponent ? 11 : 13, weight: .regular)) ?? image)
-            glyphView.contentTintColor = .secondaryLabelColor
+            glyphView.contentTintColor = dimTint
             glyphView.translatesAutoresizingMaskIntoConstraints = false
             addSubview(glyphView)
             NSLayoutConstraint.activate([

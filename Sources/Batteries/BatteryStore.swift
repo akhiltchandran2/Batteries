@@ -38,9 +38,24 @@ final class BatteryStore {
             bluetooth.removeAll { iosNames.contains($0.name.lowercased()) }
 
             var devices = ios + bluetooth
+            // Fold in accessories that were seen before but are missing from
+            // this scan, marked unreachable rather than silently dropped.
+            devices = DeviceRegistry.reconcile(current: devices)
             devices.sort { a, b in
+                if (a.unreachableSince == nil) != (b.unreachableSince == nil) {
+                    return a.unreachableSince == nil
+                }
                 if (a.percent != nil) != (b.percent != nil) { return a.percent != nil }
                 return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+            }
+
+            if let mac, let percent = mac.percent {
+                BatteryHistory.record(id: mac.id, name: mac.name, percent: percent)
+            }
+            for device in devices where device.unreachableSince == nil && device.staleSince == nil {
+                if let percent = device.percent {
+                    BatteryHistory.record(id: device.id, name: device.name, percent: percent)
+                }
             }
 
             DispatchQueue.main.async {

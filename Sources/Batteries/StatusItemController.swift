@@ -7,6 +7,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let menu = NSMenu()
     private var menuIsOpen = false
 
+    private static let clockFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter
+    }()
+
     init(store: BatteryStore) {
         self.store = store
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -89,15 +96,22 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             addInfo(store.lastUpdated == nil ? "Scanning for devices…" : "No devices found")
         } else {
             for device in store.devices {
+                let muted = device.unreachableSince != nil || device.staleSince != nil
                 addRow(BatteryRowView(icon: device.kind.symbolName,
                                       title: device.name,
                                       percent: device.percent,
                                       charging: device.isCharging,
-                                      detail: device.detail))
-                for component in device.components {
-                    addRow(BatteryRowView(title: component.label,
-                                          percent: component.percent,
-                                          isComponent: true))
+                                      isMuted: muted))
+                if let since = device.unreachableSince {
+                    addInfo("Unreachable since \(Self.clockFormatter.string(from: since))")
+                } else if let since = device.staleSince {
+                    addInfo("Reading from \(Self.clockFormatter.string(from: since)) — unlock to update")
+                } else {
+                    for component in device.components {
+                        addRow(BatteryRowView(title: component.label,
+                                              percent: component.percent,
+                                              isComponent: true))
+                    }
                 }
             }
         }
@@ -113,9 +127,31 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         appPrefs.submenu = buildPreferencesMenu()
         menu.addItem(appPrefs)
 
+        let history = NSMenuItem(title: "Battery History", action: nil, keyEquivalent: "")
+        history.submenu = buildHistoryMenu()
+        menu.addItem(history)
+
         let quit = NSMenuItem(title: "Quit Batteries", action: #selector(NSApplication.terminate(_:)),
                               keyEquivalent: "q")
         menu.addItem(quit)
+    }
+
+    private func buildHistoryMenu() -> NSMenu {
+        let historyMenu = NSMenu()
+        let series = BatteryHistory.availableSeries()
+        if series.isEmpty {
+            let placeholder = NSMenuItem(title: "Collecting data — check back shortly",
+                                         action: nil, keyEquivalent: "")
+            placeholder.isEnabled = false
+            historyMenu.addItem(placeholder)
+        } else {
+            for entry in series {
+                let item = NSMenuItem()
+                item.view = HistorySparklineView(name: entry.name, samples: entry.samples)
+                historyMenu.addItem(item)
+            }
+        }
+        return historyMenu
     }
 
     private func buildPreferencesMenu() -> NSMenu {
@@ -188,6 +224,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             hint.target = self
             prefsMenu.addItem(hint)
         }
+
+        prefsMenu.addItem(.separator())
+        let credit = NSMenuItem()
+        credit.view = InfoRowView(text: "Vibe coded by AkhilTChandran with Claude")
+        credit.isEnabled = false
+        prefsMenu.addItem(credit)
 
         return prefsMenu
     }
