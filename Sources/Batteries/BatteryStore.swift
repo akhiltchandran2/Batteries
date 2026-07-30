@@ -14,8 +14,17 @@ final class BatteryStore {
     private let queue = DispatchQueue(label: "com.batteries.refresh", qos: .utility)
     private var refreshing = false
 
+    /// Each refresh shells out to system_profiler and libimobiledevice, which
+    /// costs real CPU. Rapid triggers (opening the menu a few times, a burst
+    /// of network-change events) shouldn't each kick off a fresh scan — the
+    /// menu already renders from the cached snapshot between refreshes.
+    private static let minimumRefreshInterval: TimeInterval = 15
+
     func refresh() {
         guard !refreshing else { return }
+        if let lastUpdated, Date().timeIntervalSince(lastUpdated) < Self.minimumRefreshInterval {
+            return
+        }
         refreshing = true
         queue.async { [weak self] in
             let mac = MacBattery.read()
