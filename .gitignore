@@ -4,5 +4,8 @@
 build/
 # macOS noise
 .DS_Store
+# Xcode per-user state (created on open, not part of the project)
+xcuserdata/
+*.xcuserstate
 # Unrelated project living in this folder (not part of Batteries)
 system-forge/

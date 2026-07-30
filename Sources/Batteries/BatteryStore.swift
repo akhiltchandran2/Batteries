@@ -71,6 +71,18 @@ final class BatteryStore {
                 if let mac { all.append(mac) }
                 Preferences.registerDevices(all)
                 NotificationManager.shared.check(devices: all)
+
+                WidgetSnapshot(
+                    mac: mac.map {
+                        WidgetSnapshot.Entry(id: $0.id, name: $0.name, symbolName: $0.kind.symbolName,
+                                             percent: $0.percent, isCharging: $0.isCharging)
+                    },
+                    devices: devices.filter { $0.unreachableSince == nil }.map {
+                        WidgetSnapshot.Entry(id: $0.id, name: $0.name, symbolName: $0.kind.symbolName,
+                                             percent: $0.percent, isCharging: $0.isCharging)
+                    },
+                    generatedAt: Date()
+                ).write()
             }
         }
     }
