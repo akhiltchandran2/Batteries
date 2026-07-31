@@ -103,9 +103,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
                                       charging: device.isCharging,
                                       isMuted: muted))
                 if let since = device.unreachableSince {
-                    addInfo("Unreachable since \(Self.clockFormatter.string(from: since))")
+                    addRow(InfoRowView(text: "Unreachable since \(Self.clockFormatter.string(from: since))",
+                                      indented: true))
                 } else if let since = device.staleSince {
-                    addInfo("Reading from \(Self.clockFormatter.string(from: since)) — unlock to update")
+                    addRow(InfoRowView(text: "Reading from \(Self.clockFormatter.string(from: since)) — unlock to update",
+                                      indented: true))
                 } else {
                     for component in device.components {
                         addRow(BatteryRowView(title: component.label,

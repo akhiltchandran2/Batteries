@@ -88,9 +88,12 @@ final class BatteryRowView: NSView {
 }
 
 /// Secondary-text line ("Power Source: …", "34m until fully charged") with
-/// margins matching BatteryRowView so all text aligns.
+/// margins matching BatteryRowView so all text aligns. `indented` nests it
+/// under a specific device row (aligned with the name, past the icon) so
+/// a per-device status line reads as belonging to that row rather than
+/// floating as a separate item in the list.
 final class InfoRowView: NSView {
-    init(text: String) {
+    init(text: String, indented: Bool = false) {
         super.init(frame: NSRect(x: 0, y: 0, width: BatteryRowView.rowWidth, height: 20))
         let label = NSTextField(labelWithString: text)
         label.font = .menuFont(ofSize: 13)
@@ -98,8 +101,9 @@ final class InfoRowView: NSView {
         label.lineBreakMode = .byTruncatingTail
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
+        let leadingConstant = indented ? BatteryRowView.sideInset + 27 : BatteryRowView.sideInset
         NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: BatteryRowView.sideInset),
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: leadingConstant),
             label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor,
                                             constant: -BatteryRowView.sideInset),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),

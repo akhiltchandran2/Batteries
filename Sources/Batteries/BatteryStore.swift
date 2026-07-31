@@ -41,6 +41,11 @@ final class BatteryStore {
             // Fold in accessories that were seen before but are missing from
             // this scan, marked unreachable rather than silently dropped.
             devices = DeviceRegistry.reconcile(current: devices)
+            // The same iPhone/iPad can persist under two different IDs (a
+            // Bluetooth MAC address and a libimobiledevice UDID); once both
+            // go unreachable independently they'd otherwise show as two
+            // rows for the same physical device.
+            devices = Self.deduplicated(devices)
             devices.sort { a, b in
                 if (a.unreachableSince == nil) != (b.unreachableSince == nil) {
                     return a.unreachableSince == nil
@@ -84,6 +89,41 @@ final class BatteryStore {
                     generatedAt: Date()
                 ).write()
             }
+        }
+    }
+
+    /// Keeps one entry per device name. A real percent beats "—" regardless
+    /// of freshness — a stale 81% tells the user more than a live-but-empty
+    /// reading — then among equally-informative entries, live beats
+    /// stale-but-present beats unreachable, with the more recent sighting
+    /// as a final tiebreak.
+    private static func deduplicated(_ devices: [DeviceBattery]) -> [DeviceBattery] {
+        var bestByName: [String: DeviceBattery] = [:]
+        for device in devices {
+            let key = device.name.lowercased()
+            if let existing = bestByName[key], !isBetter(device, than: existing) {
+                continue
+            }
+            bestByName[key] = device
+        }
+        return Array(bestByName.values)
+    }
+
+    private static func isBetter(_ a: DeviceBattery, than b: DeviceBattery) -> Bool {
+        if (a.percent != nil) != (b.percent != nil) { return a.percent != nil }
+
+        func freshness(_ d: DeviceBattery) -> Int {
+            if d.unreachableSince != nil { return 0 }
+            if d.staleSince != nil { return 1 }
+            return 2
+        }
+        let freshA = freshness(a), freshB = freshness(b)
+        if freshA != freshB { return freshA > freshB }
+
+        switch freshA {
+        case 0: return (a.unreachableSince ?? .distantPast) > (b.unreachableSince ?? .distantPast)
+        case 1: return (a.staleSince ?? .distantPast) > (b.staleSince ?? .distantPast)
+        default: return false
         }
     }
 }
