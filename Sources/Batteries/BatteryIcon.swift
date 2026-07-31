@@ -40,12 +40,20 @@ enum BatteryIcon {
                              xRadius: 1.8, yRadius: 1.8).fill()
             }
 
-            // Charging bolt, punched out of the fill like the system icon
+            // Charging bolt. Erasing a slightly larger silhouette first gives
+            // it clean contrast against the fill at high charge levels, then
+            // filling the actual bolt on top keeps it visible even when the
+            // fill is too small to reach the bolt at all (e.g. 10%) — an
+            // erase alone is invisible wherever there's nothing to erase.
             if showBolt {
+                let boltRect = NSRect(x: 7.0, y: 1.5, width: 8.5, height: 10.0)
                 ctx.saveGState()
                 ctx.setBlendMode(.destinationOut)
-                boltPath(in: NSRect(x: 7.0, y: 1.5, width: 8.5, height: 10.0)).fill()
+                boltPath(in: boltRect.insetBy(dx: -1, dy: -1)).fill()
                 ctx.restoreGState()
+
+                fillColor.setFill()
+                boltPath(in: boltRect).fill()
             }
             return true
         }
