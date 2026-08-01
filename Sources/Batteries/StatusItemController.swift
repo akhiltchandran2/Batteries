@@ -57,7 +57,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     // MARK: - Menu
 
     func menuNeedsUpdate(_ menu: NSMenu) {
-        store.refresh() // kick a background refresh; menu shows cached data
+        store.refresh(reason: "menu-open") // kick a background refresh; menu shows cached data
         rebuildMenu()
     }
 
@@ -249,7 +249,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     // MARK: - Actions
 
     @objc private func refreshNow() {
-        store.refresh()
+        store.refresh(reason: "manual")
     }
 
     @objc private func openBatterySettings() {

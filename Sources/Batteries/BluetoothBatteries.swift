@@ -7,9 +7,13 @@ enum BluetoothBatteries {
     static func read() -> [DeviceBattery] {
         guard let data = Shell.run("/usr/sbin/system_profiler",
                                    ["SPBluetoothDataType", "-json"],
-                                   timeout: 20),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                                   timeout: 20) else {
+            Log.devices.debug("system_profiler SPBluetoothDataType produced no output")
+            return []
+        }
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let sections = root["SPBluetoothDataType"] as? [[String: Any]] else {
+            Log.devices.error("system_profiler SPBluetoothDataType output wasn't the expected JSON shape")
             return []
         }
 
@@ -28,7 +32,9 @@ enum BluetoothBatteries {
         return devices
     }
 
-    private static func parse(name: String, props: [String: Any]) -> DeviceBattery? {
+    /// Internal (not private) so tests can exercise it directly with
+    /// fixture props instead of mocking system_profiler.
+    static func parse(name: String, props: [String: Any]) -> DeviceBattery? {
         let main = percentValue(props["device_batteryLevelMain"])
         let left = percentValue(props["device_batteryLevelLeft"])
         let right = percentValue(props["device_batteryLevelRight"])

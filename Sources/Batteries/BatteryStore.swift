@@ -20,12 +20,21 @@ final class BatteryStore {
     /// menu already renders from the cached snapshot between refreshes.
     private static let minimumRefreshInterval: TimeInterval = 15
 
-    func refresh() {
-        guard !refreshing else { return }
+    /// `reason` is purely diagnostic — it's what shows up in the log to
+    /// answer "what triggered this scan" (timer, menu open, network change,
+    /// wake, launch, manual).
+    func refresh(reason: String = "unspecified") {
+        guard !refreshing else {
+            Log.refresh.debug("skip (\(reason, privacy: .public)): already refreshing")
+            return
+        }
         if let lastUpdated, Date().timeIntervalSince(lastUpdated) < Self.minimumRefreshInterval {
+            Log.refresh.debug("skip (\(reason, privacy: .public)): throttled, last update was recent")
             return
         }
         refreshing = true
+        let start = Date()
+        Log.refresh.debug("start (\(reason, privacy: .public))")
         queue.async { [weak self] in
             let mac = MacBattery.read()
             let health = BatteryHealth.read()
@@ -70,6 +79,8 @@ final class BatteryStore {
                 self.devices = devices
                 self.lastUpdated = Date()
                 self.refreshing = false
+                let elapsed = Date().timeIntervalSince(start)
+                Log.refresh.debug("done (\(reason, privacy: .public)) in \(elapsed, format: .fixed(precision: 2))s, \(devices.count) devices")
                 self.onUpdate?()
 
                 var all = devices

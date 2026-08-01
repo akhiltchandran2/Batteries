@@ -13,9 +13,13 @@ enum Shell {
         // and deadlock the child process.
         process.standardError = FileHandle.nullDevice
 
+        let label = (path as NSString).lastPathComponent
+        let start = Date()
+
         do {
             try process.run()
         } catch {
+            Log.shell.error("\(label, privacy: .public) failed to launch: \(error.localizedDescription, privacy: .public)")
             return nil
         }
 
@@ -29,7 +33,20 @@ enum Shell {
 
         let data = stdout.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
+        let elapsed = Date().timeIntervalSince(start)
+
+        // .uncaughtSignal means we killed it (terminate/SIGKILL above) rather
+        // than it exiting on its own — i.e. it hit the timeout.
+        if process.terminationReason == .uncaughtSignal {
+            Log.shell.warning("\(label, privacy: .public) timed out after \(elapsed, format: .fixed(precision: 1))s and was killed")
+        }
+        guard process.terminationStatus == 0 else {
+            Log.shell.debug("\(label, privacy: .public) exited \(process.terminationStatus) after \(elapsed, format: .fixed(precision: 2))s")
+            return nil
+        }
+        if elapsed > 2 {
+            Log.shell.debug("\(label, privacy: .public) took \(elapsed, format: .fixed(precision: 2))s")
+        }
         return data
     }
 

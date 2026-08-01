@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var autoRefreshTimer: Timer?
     private var pathMonitor: NWPathMonitor?
     private var pendingRefresh: DispatchWorkItem?
+    private var lastPathStatus: NWPath.Status?
 
     /// A battery monitor that itself drains the battery defeats the point.
     /// Scan often while plugged in, back off on battery power, and let macOS
@@ -23,13 +24,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             controller?.refreshUI()
             self?.scheduleNextAutoRefresh()
         }
-        store.refresh()
+        store.refresh(reason: "launch")
 
-        // Rescan shortly after any network change, so iPhones on Wi-Fi appear
-        // seconds after joining the network instead of on the next timer tick.
+        // Rescan shortly after a genuine network change (e.g. joining Wi-Fi),
+        // so iPhones on Wi-Fi appear seconds after connecting instead of on
+        // the next timer tick. NWPathMonitor fires pathUpdateHandler on any
+        // path property change, not just connect/disconnect — routine churn
+        // while already-satisfied would otherwise trigger a refresh (and,
+        // via onUpdate, reset the periodic timer's countdown) far more
+        // often than intended, undermining the battery-power backoff.
         let monitor = NWPathMonitor()
-        monitor.pathUpdateHandler = { [weak self] _ in
-            DispatchQueue.main.async { self?.scheduleRefresh() }
+        monitor.pathUpdateHandler = { [weak self] path in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard self.lastPathStatus != path.status else { return }
+                self.lastPathStatus = path.status
+                Log.refresh.debug("network path status changed: \(String(describing: path.status), privacy: .public)")
+                self.scheduleRefresh(reason: "network-change")
+            }
         }
         monitor.start(queue: .global(qos: .utility))
         pathMonitor = monitor
@@ -41,14 +53,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func didWake() {
-        scheduleRefresh()
+        scheduleRefresh(reason: "wake")
     }
 
     /// Debounced refresh: network transitions fire several path updates in a
     /// row, so wait for things to settle before scanning.
-    private func scheduleRefresh() {
+    private func scheduleRefresh(reason: String) {
         pendingRefresh?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.store.refresh() }
+        let work = DispatchWorkItem { [weak self] in self?.store.refresh(reason: reason) }
         pendingRefresh = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: work)
     }
@@ -61,9 +73,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         autoRefreshTimer?.invalidate()
         let onAC = store.mac?.powerSource == "Power Adapter"
         let interval = onAC ? Self.acRefreshInterval : Self.batteryRefreshInterval
+        Log.refresh.debug("next auto-refresh in \(interval, format: .fixed(precision: 0))s (onAC: \(onAC))")
 
         let timer = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
-            self?.store.refresh()
+            self?.store.refresh(reason: "timer")
         }
         timer.tolerance = interval * 0.2
         RunLoop.main.add(timer, forMode: .common)
