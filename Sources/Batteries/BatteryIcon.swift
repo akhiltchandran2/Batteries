@@ -40,20 +40,25 @@ enum BatteryIcon {
                              xRadius: 1.8, yRadius: 1.8).fill()
             }
 
-            // Charging bolt. Erasing a slightly larger silhouette first gives
-            // it clean contrast against the fill at high charge levels, then
-            // filling the actual bolt on top keeps it visible even when the
-            // fill is too small to reach the bolt at all (e.g. 10%) — an
-            // erase alone is invisible wherever there's nothing to erase.
+            // Charging bolt: a genuine punched-through hole, like the system
+            // icon, not a same-color shape drawn on top — since this is a
+            // flat-tinted template image, a same-color "fill on top" is
+            // invisible as a distinct shape wherever it overlaps the real
+            // charge fill (which is the same color), leaving only a thin
+            // scratch-like outline instead of a legible bolt. Erasing needs
+            // opaque material to cut into, so guarantee a small backing
+            // patch behind the bolt regardless of the actual charge level —
+            // otherwise there's nothing to erase at low percentages and the
+            // bolt disappears entirely.
             if showBolt {
-                let boltRect = NSRect(x: 7.0, y: 1.5, width: 8.5, height: 10.0)
+                let boltRect = NSRect(x: 6.6, y: 1.2, width: 9.3, height: 10.6)
+                fillColor.setFill()
+                NSBezierPath(rect: boltRect.insetBy(dx: -0.8, dy: -0.4)).fill()
+
                 ctx.saveGState()
                 ctx.setBlendMode(.destinationOut)
-                boltPath(in: boltRect.insetBy(dx: -1, dy: -1)).fill()
-                ctx.restoreGState()
-
-                fillColor.setFill()
                 boltPath(in: boltRect).fill()
+                ctx.restoreGState()
             }
             return true
         }
