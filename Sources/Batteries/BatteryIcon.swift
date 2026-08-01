@@ -29,32 +29,29 @@ enum BatteryIcon {
             NSBezierPath(roundedRect: NSRect(x: 23.2, y: 4.6, width: 2.2, height: 3.8),
                          xRadius: 1.1, yRadius: 1.1).fill()
 
-            // Proportional charge fill
+            // Proportional charge fill. While charging, extend the fill to
+            // sit behind the whole bolt so the bolt (punched out below) always
+            // has solid material to cut into — otherwise at low charge there's
+            // nothing to erase and the bolt vanishes. This means the fill reads
+            // fuller than the true level while charging; that's the deliberate
+            // trade for a legible, theme-adapting bolt on a monochrome
+            // template icon (the exact % is always in the dropdown).
+            let inner = body.insetBy(dx: 1.7, dy: 1.7)
+            let boltRect = NSRect(x: 6.6, y: 1.4, width: 9.0, height: 10.2)
             let level = max(0.0, min(1.0, Double(percent ?? 0) / 100.0))
-            if level > 0 {
-                let inner = body.insetBy(dx: 1.7, dy: 1.7)
-                let fillWidth = max(2.0, inner.width * CGFloat(level))
+            var fillWidth = inner.width * CGFloat(level)
+            if showBolt { fillWidth = max(fillWidth, boltRect.maxX + 0.6 - inner.minX) }
+            if fillWidth > 0 {
                 fillColor.setFill()
                 NSBezierPath(roundedRect: NSRect(x: inner.minX, y: inner.minY,
-                                                 width: fillWidth, height: inner.height),
+                                                 width: max(2.0, fillWidth), height: inner.height),
                              xRadius: 1.8, yRadius: 1.8).fill()
             }
 
             // Charging bolt: a genuine punched-through hole, like the system
-            // icon, not a same-color shape drawn on top — since this is a
-            // flat-tinted template image, a same-color "fill on top" is
-            // invisible as a distinct shape wherever it overlaps the real
-            // charge fill (which is the same color), leaving only a thin
-            // scratch-like outline instead of a legible bolt. Erasing needs
-            // opaque material to cut into, so guarantee a small backing
-            // patch behind the bolt regardless of the actual charge level —
-            // otherwise there's nothing to erase at low percentages and the
-            // bolt disappears entirely.
+            // icon — the menu bar shows through it, which reads cleanly on
+            // both light and dark bars.
             if showBolt {
-                let boltRect = NSRect(x: 6.6, y: 1.2, width: 9.3, height: 10.6)
-                fillColor.setFill()
-                NSBezierPath(rect: boltRect.insetBy(dx: -0.8, dy: -0.4)).fill()
-
                 ctx.saveGState()
                 ctx.setBlendMode(.destinationOut)
                 boltPath(in: boltRect).fill()
