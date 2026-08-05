@@ -7,6 +7,11 @@ final class BatteryRowView: NSView {
     static let rowWidth: CGFloat = 310
     static let sideInset: CGFloat = 16
 
+    private let percentLabel: NSTextField
+    private let glyphView: NSImageView?
+    private let isComponent: Bool
+    private let isMuted: Bool
+
     init(icon: String? = nil,
          title: String,
          bold: Bool = false,
@@ -15,8 +20,8 @@ final class BatteryRowView: NSView {
          showGlyph: Bool = true,
          isComponent: Bool = false,
          isMuted: Bool = false) {
-        super.init(frame: NSRect(x: 0, y: 0, width: Self.rowWidth,
-                                 height: isComponent ? 22 : 28))
+        self.isComponent = isComponent
+        self.isMuted = isMuted
 
         let fontSize: CGFloat = isComponent ? 12 : 13
         let textColor: NSColor = isComponent ? .secondaryLabelColor
@@ -29,7 +34,30 @@ final class BatteryRowView: NSView {
         titleLabel.textColor = textColor
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let percentLabel = NSTextField(labelWithString: percent.map { "\($0)%" } ?? "—")
+        percentLabel.font = .menuFont(ofSize: fontSize)
+        percentLabel.textColor = percent == nil ? .secondaryLabelColor : textColor
+        percentLabel.translatesAutoresizingMaskIntoConstraints = false
+        self.percentLabel = percentLabel
+
+        var glyphView: NSImageView?
+        if showGlyph,
+           let image = NSImage(systemSymbolName: Self.glyphName(percent: percent, charging: charging),
+                               accessibilityDescription: nil) {
+            let view = NSImageView(image: image.withSymbolConfiguration(
+                .init(pointSize: isComponent ? 11 : 13, weight: .regular)) ?? image)
+            view.contentTintColor = dimTint
+            view.translatesAutoresizingMaskIntoConstraints = false
+            glyphView = view
+        }
+        self.glyphView = glyphView
+
+        super.init(frame: NSRect(x: 0, y: 0, width: Self.rowWidth,
+                                 height: isComponent ? 22 : 28))
+
         addSubview(titleLabel)
+        addSubview(percentLabel)
 
         var titleLeading = leadingAnchor
         // Component rows (AirPods Left/Right/Case) indent to align with the
@@ -51,21 +79,9 @@ final class BatteryRowView: NSView {
             titleLeadingGap = 7
         }
 
-        let percentLabel = NSTextField(labelWithString: percent.map { "\($0)%" } ?? "—")
-        percentLabel.font = .menuFont(ofSize: fontSize)
-        percentLabel.textColor = percent == nil ? .secondaryLabelColor : textColor
-        percentLabel.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(percentLabel)
-
         var percentTrailing = trailingAnchor
         var percentTrailingGap: CGFloat = -Self.sideInset
-        if showGlyph,
-           let image = NSImage(systemSymbolName: Self.glyphName(percent: percent, charging: charging),
-                               accessibilityDescription: nil) {
-            let glyphView = NSImageView(image: image.withSymbolConfiguration(
-                .init(pointSize: isComponent ? 11 : 13, weight: .regular)) ?? image)
-            glyphView.contentTintColor = dimTint
-            glyphView.translatesAutoresizingMaskIntoConstraints = false
+        if let glyphView {
             addSubview(glyphView)
             NSLayoutConstraint.activate([
                 glyphView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.sideInset),
@@ -85,6 +101,25 @@ final class BatteryRowView: NSView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    /// Updates the displayed percent/charging state in place, without
+    /// touching layout — safe to call while this row's menu is on screen
+    /// (unlike rebuilding the menu's items, which leaves stale empty space
+    /// if done while open). Icon and title never change post-creation, so
+    /// they're left alone.
+    func update(percent: Int?, charging: Bool) {
+        let textColor: NSColor = isComponent ? .secondaryLabelColor
+                                : (isMuted ? .tertiaryLabelColor : .labelColor)
+        percentLabel.stringValue = percent.map { "\($0)%" } ?? "—"
+        percentLabel.textColor = percent == nil ? .secondaryLabelColor : textColor
+
+        if let glyphView,
+           let image = NSImage(systemSymbolName: Self.glyphName(percent: percent, charging: charging),
+                               accessibilityDescription: nil) {
+            glyphView.image = image.withSymbolConfiguration(
+                .init(pointSize: isComponent ? 11 : 13, weight: .regular)) ?? image
+        }
+    }
 }
 
 /// Secondary-text line ("Power Source: …", "34m until fully charged") with
@@ -93,13 +128,17 @@ final class BatteryRowView: NSView {
 /// a per-device status line reads as belonging to that row rather than
 /// floating as a separate item in the list.
 final class InfoRowView: NSView {
+    private let label: NSTextField
+
     init(text: String, indented: Bool = false) {
-        super.init(frame: NSRect(x: 0, y: 0, width: BatteryRowView.rowWidth, height: 20))
         let label = NSTextField(labelWithString: text)
         label.font = .menuFont(ofSize: 13)
         label.textColor = .secondaryLabelColor
         label.lineBreakMode = .byTruncatingTail
         label.translatesAutoresizingMaskIntoConstraints = false
+        self.label = label
+
+        super.init(frame: NSRect(x: 0, y: 0, width: BatteryRowView.rowWidth, height: 20))
         addSubview(label)
         let leadingConstant = indented ? BatteryRowView.sideInset + 27 : BatteryRowView.sideInset
         NSLayoutConstraint.activate([
@@ -111,6 +150,12 @@ final class InfoRowView: NSView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    /// Updates the displayed text in place — safe while the menu is open,
+    /// same reasoning as BatteryRowView.update(percent:charging:).
+    func update(text: String) {
+        label.stringValue = text
+    }
 }
 
 extension BatteryRowView {

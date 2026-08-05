@@ -7,6 +7,24 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let menu = NSMenu()
     private var menuIsOpen = false
 
+    /// Rows built during the last rebuildMenu(), kept around so a refresh
+    /// that completes while the menu is on screen can update displayed
+    /// values in place instead of waiting for the menu to close — full
+    /// item-structure rebuilds are deferred until close because doing that
+    /// while the menu is visible can leave stale empty space if the content
+    /// shrinks.
+    private struct DeviceRowSet {
+        let row: BatteryRowView
+        let statusRow: InfoRowView?
+        let componentRows: [BatteryRowView]
+    }
+    private var headerRow: BatteryRowView?
+    private var powerSourceRow: InfoRowView?
+    private var chargeStatusRow: InfoRowView?
+    private var healthRow: InfoRowView?
+    private var deviceRows: [String: DeviceRowSet] = [:]
+    private var lastDeviceOrder: [String] = []
+
     private static let clockFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
@@ -37,10 +55,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         } else {
             button.toolTip = "Batteries"
         }
-        // Rebuilding the items of a menu that is currently on screen leaves
-        // stale empty space when the content shrinks, so defer until close —
-        // the menu is rebuilt in menuNeedsUpdate before every open anyway.
-        if !menuIsOpen {
+        if menuIsOpen {
+            // Try to refresh the already-visible menu's values in place so
+            // opening the menu actually shows live data instead of whatever
+            // was cached at open time. If the structure changed (a device
+            // appeared/disappeared, a status line's presence changed), this
+            // bails out safely — menuDidClose always does a full rebuild
+            // regardless, so nothing is lost, just deferred as before.
+            _ = attemptSoftUpdate()
+        } else {
             rebuildMenu()
         }
     }
@@ -61,32 +84,104 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         rebuildMenu()
     }
 
+    private static func chargeStatusText(for mac: DeviceBattery) -> String? {
+        if mac.fullyCharged { return "Fully Charged" }
+        if let time = mac.timeRemaining { return time }
+        if mac.isCharging { return "Charging" }
+        return nil
+    }
+
+    private static func healthText(for health: BatteryHealthInfo) -> String? {
+        var parts: [String] = []
+        if let condition = health.condition { parts.append(condition) }
+        if let cycles = health.cycleCount { parts.append("\(cycles) cycles") }
+        guard !parts.isEmpty else { return nil }
+        return "Health: " + parts.joined(separator: " · ")
+    }
+
+    /// Updates every displayed value to match the current store state
+    /// without touching the menu's item structure. Returns false (doing
+    /// nothing) if the structure has actually changed since the last
+    /// rebuild, so the caller can fall back to the existing defer-until-
+    /// close behavior for that case.
+    private func attemptSoftUpdate() -> Bool {
+        let mac = store.mac
+        guard headerRow != nil else { return false }
+        guard (powerSourceRow != nil) == (mac != nil) else { return false }
+
+        let chargeText = mac.flatMap(Self.chargeStatusText(for:))
+        guard (chargeStatusRow != nil) == (chargeText != nil) else { return false }
+
+        let healthText = store.health.flatMap(Self.healthText(for:))
+        guard (healthRow != nil) == (healthText != nil) else { return false }
+
+        let devices = store.devices
+        guard devices.map(\.id) == lastDeviceOrder else { return false }
+        for device in devices {
+            guard let rowSet = deviceRows[device.id] else { return false }
+            let hasStatusLine = device.unreachableSince != nil || device.staleSince != nil
+            guard (rowSet.statusRow != nil) == hasStatusLine else { return false }
+            let expectedComponentCount = hasStatusLine ? 0 : device.components.count
+            guard rowSet.componentRows.count == expectedComponentCount else { return false }
+        }
+
+        // Structure matches exactly — safe to update every value in place.
+        headerRow?.update(percent: mac?.percent, charging: mac?.isCharging ?? false)
+        if let mac {
+            powerSourceRow?.update(text: "Power Source: \(mac.powerSource ?? "Unknown")")
+        }
+        if let chargeText {
+            chargeStatusRow?.update(text: chargeText)
+        }
+        if let healthText {
+            healthRow?.update(text: healthText)
+        }
+        for device in devices {
+            guard let rowSet = deviceRows[device.id] else { continue }
+            rowSet.row.update(percent: device.percent, charging: device.isCharging)
+            if let since = device.unreachableSince {
+                rowSet.statusRow?.update(text: "Unreachable since \(Self.clockFormatter.string(from: since))")
+            } else if let since = device.staleSince {
+                rowSet.statusRow?.update(text: "Reading from \(Self.clockFormatter.string(from: since)) — unlock to update")
+            }
+            for (component, row) in zip(device.components, rowSet.componentRows) {
+                row.update(percent: component.percent, charging: false)
+            }
+        }
+        return true
+    }
+
     private func rebuildMenu() {
         menu.removeAllItems()
+        headerRow = nil
+        powerSourceRow = nil
+        chargeStatusRow = nil
+        healthRow = nil
+        deviceRows = [:]
+        lastDeviceOrder = []
 
         // ── Header: Battery ................ 84% ─────────────────────
         let mac = store.mac
-        addRow(BatteryRowView(header: "Battery", percent: mac?.percent))
+        let header = BatteryRowView(header: "Battery", percent: mac?.percent)
+        addRow(header)
+        headerRow = header
         if let mac {
-            addInfo("Power Source: \(mac.powerSource ?? "Unknown")")
-            if mac.fullyCharged {
-                addInfo("Fully Charged")
-            } else if let time = mac.timeRemaining {
-                addInfo(time)
-            } else if mac.isCharging {
-                addInfo("Charging")
+            let powerSource = InfoRowView(text: "Power Source: \(mac.powerSource ?? "Unknown")")
+            addRow(powerSource)
+            powerSourceRow = powerSource
+
+            if let chargeText = Self.chargeStatusText(for: mac) {
+                let row = InfoRowView(text: chargeText)
+                addRow(row)
+                chargeStatusRow = row
             }
-            if let health = store.health {
-                var parts: [String] = []
-                if let condition = health.condition { parts.append(condition) }
-                if let cycles = health.cycleCount { parts.append("\(cycles) cycles") }
-                if !parts.isEmpty {
-                    let row = InfoRowView(text: "Health: " + parts.joined(separator: " · "))
-                    if let capacity = health.maxCapacityPercent {
-                        row.toolTip = "Maximum capacity: \(capacity)% of design"
-                    }
-                    addRow(row)
+            if let health = store.health, let healthText = Self.healthText(for: health) {
+                let row = InfoRowView(text: healthText)
+                if let capacity = health.maxCapacityPercent {
+                    row.toolTip = "Maximum capacity: \(capacity)% of design"
                 }
+                addRow(row)
+                healthRow = row
             }
         }
         menu.addItem(.separator())
@@ -96,25 +191,37 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             addInfo(store.lastUpdated == nil ? "Scanning for devices…" : "No devices found")
         } else {
             for device in store.devices {
+                lastDeviceOrder.append(device.id)
                 let muted = device.unreachableSince != nil || device.staleSince != nil
-                addRow(BatteryRowView(icon: device.kind.symbolName,
-                                      title: device.name,
-                                      percent: device.percent,
-                                      charging: device.isCharging,
-                                      isMuted: muted))
+                let row = BatteryRowView(icon: device.kind.symbolName,
+                                         title: device.name,
+                                         percent: device.percent,
+                                         charging: device.isCharging,
+                                         isMuted: muted)
+                addRow(row)
+
+                var statusRow: InfoRowView?
+                var componentRows: [BatteryRowView] = []
                 if let since = device.unreachableSince {
-                    addRow(InfoRowView(text: "Unreachable since \(Self.clockFormatter.string(from: since))",
-                                      indented: true))
+                    let info = InfoRowView(text: "Unreachable since \(Self.clockFormatter.string(from: since))",
+                                           indented: true)
+                    addRow(info)
+                    statusRow = info
                 } else if let since = device.staleSince {
-                    addRow(InfoRowView(text: "Reading from \(Self.clockFormatter.string(from: since)) — unlock to update",
-                                      indented: true))
+                    let info = InfoRowView(text: "Reading from \(Self.clockFormatter.string(from: since)) — unlock to update",
+                                           indented: true)
+                    addRow(info)
+                    statusRow = info
                 } else {
                     for component in device.components {
-                        addRow(BatteryRowView(title: component.label,
-                                              percent: component.percent,
-                                              isComponent: true))
+                        let componentRow = BatteryRowView(title: component.label,
+                                                          percent: component.percent,
+                                                          isComponent: true)
+                        addRow(componentRow)
+                        componentRows.append(componentRow)
                     }
                 }
+                deviceRows[device.id] = DeviceRowSet(row: row, statusRow: statusRow, componentRows: componentRows)
             }
         }
         menu.addItem(.separator())
