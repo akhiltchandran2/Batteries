@@ -19,17 +19,44 @@ enum BluetoothBatteries {
 
         var devices: [DeviceBattery] = []
         for section in sections {
-            guard let connected = section["device_connected"] as? [[String: Any]] else { continue }
-            for entry in connected {
-                for (name, value) in entry {
-                    guard let props = value as? [String: Any] else { continue }
-                    if let device = parse(name: name, props: props) {
-                        devices.append(device)
+            if let connected = section["device_connected"] as? [[String: Any]] {
+                for entry in connected {
+                    for (name, value) in entry {
+                        guard let props = value as? [String: Any] else { continue }
+                        if let device = parse(name: name, props: props) {
+                            devices.append(device)
+                        }
+                    }
+                }
+            }
+
+            // iPhone/iPad/Watch are worth showing even when not actively
+            // Bluetooth-connected: Continuity battery sharing only reports
+            // a level intermittently (device unlocked and nearby, both on
+            // the same Apple ID, Bluetooth+Wi-Fi on), so the device should
+            // still appear — as "—" — rather than vanish, matching what
+            // System Settings' Bluetooth pane shows. Other not-connected
+            // accessories (a keyboard tried once, someone else's earbuds)
+            // are deliberately excluded — showing every device ever paired
+            // would clutter the menu with things that aren't "yours".
+            if let notConnected = section["device_not_connected"] as? [[String: Any]] {
+                for entry in notConnected {
+                    for (name, value) in entry {
+                        guard let props = value as? [String: Any] else { continue }
+                        if let device = parse(name: name, props: props),
+                           Self.isContinuityDevice(device.kind) {
+                            devices.append(device)
+                        }
                     }
                 }
             }
         }
         return devices
+    }
+
+    /// Internal (not private) so tests can exercise it directly.
+    static func isContinuityDevice(_ kind: DeviceBattery.Kind) -> Bool {
+        kind == .iphone || kind == .ipad || kind == .watch
     }
 
     /// Internal (not private) so tests can exercise it directly with

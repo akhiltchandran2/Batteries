@@ -39,21 +39,16 @@ final class BatteryStore {
             let mac = MacBattery.read()
             let health = BatteryHealth.read()
             let ios = IOSDevices.read()
-            var bluetooth = BluetoothBatteries.read()
-
-            // An iPhone/iPad reachable via libimobiledevice also shows up in
-            // the Bluetooth list without a battery level — keep the iOS entry.
-            let iosNames = Set(ios.map { $0.name.lowercased() })
-            bluetooth.removeAll { iosNames.contains($0.name.lowercased()) }
+            let bluetooth = BluetoothBatteries.read()
 
             var devices = ios + bluetooth
             // Fold in accessories that were seen before but are missing from
             // this scan, marked unreachable rather than silently dropped.
             devices = DeviceRegistry.reconcile(current: devices)
-            // The same iPhone/iPad can persist under two different IDs (a
-            // Bluetooth MAC address and a libimobiledevice UDID); once both
-            // go unreachable independently they'd otherwise show as two
-            // rows for the same physical device.
+            // The same iPhone/iPad can be reported by both sources at once
+            // (a Bluetooth MAC address and a libimobiledevice UDID) — keep
+            // whichever entry is more useful: a real percent beats "—",
+            // and among two real readings the fresher one wins.
             devices = Self.deduplicated(devices)
             devices.sort { a, b in
                 if (a.unreachableSince == nil) != (b.unreachableSince == nil) {

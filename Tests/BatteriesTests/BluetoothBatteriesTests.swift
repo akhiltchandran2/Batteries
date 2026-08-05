@@ -62,4 +62,23 @@ final class BluetoothBatteriesTests: XCTestCase {
         let device = BluetoothBatteries.parse(name: "John's iPhone", props: props)
         XCTAssertEqual(device?.kind, .iphone)
     }
+
+    // MARK: - isContinuityDevice(_:)
+
+    func testIsContinuityDevice_includesIPhoneIPadWatch() {
+        XCTAssertTrue(BluetoothBatteries.isContinuityDevice(.iphone))
+        XCTAssertTrue(BluetoothBatteries.isContinuityDevice(.ipad))
+        XCTAssertTrue(BluetoothBatteries.isContinuityDevice(.watch))
+    }
+
+    func testIsContinuityDevice_excludesOrdinaryAccessories() {
+        // Not-connected accessories (a keyboard tried once, someone else's
+        // earbuds) shouldn't clutter the menu the way a not-connected
+        // iPhone/iPad/Watch is worth surfacing.
+        XCTAssertFalse(BluetoothBatteries.isContinuityDevice(.headphones))
+        XCTAssertFalse(BluetoothBatteries.isContinuityDevice(.keyboard))
+        XCTAssertFalse(BluetoothBatteries.isContinuityDevice(.mouse))
+        XCTAssertFalse(BluetoothBatteries.isContinuityDevice(.speaker))
+        XCTAssertFalse(BluetoothBatteries.isContinuityDevice(.other))
+    }
 }

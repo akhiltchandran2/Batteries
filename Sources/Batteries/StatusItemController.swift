@@ -221,7 +221,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         prefsMenu.addItem(refresh)
 
         if !IOSDevices.toolsAvailable {
-            let hint = NSMenuItem(title: "Enable iPhone & iPad Battery Levels…",
+            let hint = NSMenuItem(title: "Get Precise iPhone & iPad Battery %…",
                                   action: #selector(showIOSHelp), keyEquivalent: "")
             hint.target = self
             prefsMenu.addItem(hint)
@@ -297,15 +297,21 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func showIOSHelp() {
         let alert = NSAlert()
-        alert.messageText = "iPhone & iPad battery levels"
+        alert.messageText = "Precise iPhone & iPad battery levels"
         alert.informativeText = """
-        To show iPhone/iPad battery percentages, install libimobiledevice:
+        Your iPhone/iPad already appears here via Bluetooth — no cable \
+        needed — but it only shows a percentage when Continuity battery \
+        sharing is actively reporting one (device unlocked and nearby).
+
+        For a reliable, always-on percentage instead, install \
+        libimobiledevice:
 
             brew install libimobiledevice
 
         Then connect your device once via USB and tap "Trust". For Wi-Fi, \
         also enable "Show this iPhone when on Wi-Fi" in Finder. The device \
-        will appear here as long as it's on the same network.
+        will keep reporting a precise level as long as it's on the same \
+        network — no need to keep it plugged in afterward.
         """
         alert.addButton(withTitle: "Copy Install Command")
         alert.addButton(withTitle: "OK")
