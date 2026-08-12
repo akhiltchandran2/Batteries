@@ -5,15 +5,15 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>Batteries</string>
+	<string>PowerDeck</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.akhilchandran.batteries</string>
+	<string>com.akhilchandran.powerdeck</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Batteries</string>
+	<string>PowerDeck</string>
 	<key>CFBundleDisplayName</key>
-	<string>Batteries</string>
+	<string>PowerDeck</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -31,7 +31,7 @@
 	<key>NSHumanReadableCopyright</key>
 	<string>© Akhil Chandran</string>
 	<key>SUFeedURL</key>
-	<string>https://qstore.pages.dev/apps/batteries/appcast.xml</string>
+	<string>https://qstore.pages.dev/apps/powerdeck/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>M0oJuHc4OHLR+GvxbI8oOsFmXaA2+gJBgJ6knI2cXzU=</string>
 </dict>

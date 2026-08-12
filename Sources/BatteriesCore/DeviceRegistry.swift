@@ -20,7 +20,7 @@ enum DeviceRegistry {
     private static var fileURL: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory,
                                            in: .userDomainMask)[0]
-            .appendingPathComponent("Batteries", isDirectory: true)
+            .appendingPathComponent("PowerDeck", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("device-registry.json")
     }

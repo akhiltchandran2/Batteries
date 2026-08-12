@@ -1,23 +1,25 @@
 #!/bin/bash
-# Builds Batteries.app for QStore: versioned from the environment, with
+# Builds PowerDeck.app for QStore: versioned from the environment, with
 # Sparkle embedded for automatic updates, ad-hoc signed. Output goes to
-# ./build-qstore/Batteries.app — this is separate from build.sh's plain
-# ./build/Batteries.app, which has no Sparkle dependency at all.
+# ./build-qstore/PowerDeck.app — this is separate from build.sh's plain
+# ./build/PowerDeck.app, which has no Sparkle dependency at all.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 VERSION="${APP_VERSION:-1.0.0}"
 BUILD="${APP_BUILD:-$(date +%y%m%d%H%M)}"
 
-echo "Building Batteries $VERSION ($BUILD) for QStore…"
+echo "Building PowerDeck $VERSION ($BUILD) for QStore…"
 
+# SwiftPM product is still named "BatteriesQStore" (internal target name);
+# the packaged app and its executable are branded "PowerDeck".
 swift build -c release --product BatteriesQStore
 
-APP="build-qstore/Batteries.app"
+APP="build-qstore/PowerDeck.app"
 rm -rf "build-qstore"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 
-cp ".build/release/BatteriesQStore" "$APP/Contents/MacOS/Batteries"
+cp ".build/release/BatteriesQStore" "$APP/Contents/MacOS/PowerDeck"
 
 sed -e "s/__APP_VERSION__/$VERSION/g" -e "s/__APP_BUILD__/$BUILD/g" \
     "Resources/Info-QStore.plist" > "$APP/Contents/Info.plist"
@@ -42,7 +44,10 @@ ditto "$SPARKLE_SRC" "$APP/Contents/Frameworks/Sparkle.framework"
 # share the app's team identity, which an ad-hoc signature does not have —
 # the app would die at launch with "Library not loaded".
 SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
-VERSIONED="$SPARKLE/Versions/B"
+# Resolve the current versioned dir (e.g. Versions/B) rather than hardcoding,
+# so a future Sparkle that bumps its version letter still signs correctly.
+CURRENT=$(/usr/bin/readlink "$SPARKLE/Versions/Current" 2>/dev/null || echo "Current")
+VERSIONED="$SPARKLE/Versions/$CURRENT"
 
 for xpc in "$VERSIONED/XPCServices/Downloader.xpc" "$VERSIONED/XPCServices/Installer.xpc"; do
   if [ -e "$xpc" ]; then

@@ -19,11 +19,15 @@ final class BatteryRowView: NSView {
          charging: Bool = false,
          showGlyph: Bool = true,
          isComponent: Bool = false,
-         isMuted: Bool = false) {
+         isMuted: Bool = false,
+         size: CGFloat? = nil) {
         self.isComponent = isComponent
         self.isMuted = isMuted
 
-        let fontSize: CGFloat = isComponent ? 12 : 13
+        // Type scale: header title 14 (set via `size`), device rows 13,
+        // component sub-rows 12 — a clear step down at each level so the
+        // menu reads primary → secondary at a glance.
+        let fontSize: CGFloat = size ?? (isComponent ? 12 : 13)
         let textColor: NSColor = isComponent ? .secondaryLabelColor
                                 : (isMuted ? .tertiaryLabelColor : .labelColor)
         let dimTint: NSColor = isMuted ? .tertiaryLabelColor : .secondaryLabelColor
@@ -36,7 +40,10 @@ final class BatteryRowView: NSView {
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         let percentLabel = NSTextField(labelWithString: percent.map { "\($0)%" } ?? "—")
-        percentLabel.font = .menuFont(ofSize: fontSize)
+        // The header's percent matches its bold title weight; device rows
+        // keep the regular menu weight.
+        percentLabel.font = bold ? .systemFont(ofSize: fontSize, weight: .semibold)
+                                 : .menuFont(ofSize: fontSize)
         percentLabel.textColor = percent == nil ? .secondaryLabelColor : textColor
         percentLabel.translatesAutoresizingMaskIntoConstraints = false
         self.percentLabel = percentLabel
@@ -132,13 +139,15 @@ final class InfoRowView: NSView {
 
     init(text: String, indented: Bool = false) {
         let label = NSTextField(labelWithString: text)
-        label.font = .menuFont(ofSize: 13)
+        // Secondary tier: one step below device rows (13) so status and
+        // detail lines read as supporting text, not peers of the names.
+        label.font = .menuFont(ofSize: 12)
         label.textColor = .secondaryLabelColor
         label.lineBreakMode = .byTruncatingTail
         label.translatesAutoresizingMaskIntoConstraints = false
         self.label = label
 
-        super.init(frame: NSRect(x: 0, y: 0, width: BatteryRowView.rowWidth, height: 20))
+        super.init(frame: NSRect(x: 0, y: 0, width: BatteryRowView.rowWidth, height: 18))
         addSubview(label)
         let leadingConstant = indented ? BatteryRowView.sideInset + 27 : BatteryRowView.sideInset
         NSLayoutConstraint.activate([
@@ -161,8 +170,8 @@ final class InfoRowView: NSView {
 extension BatteryRowView {
     /// Header variant ("Battery   93%") — bold, no glyph, slightly taller.
     convenience init(header title: String, percent: Int?) {
-        self.init(title: title, bold: true, percent: percent, showGlyph: false)
-        setFrameSize(NSSize(width: Self.rowWidth, height: 30))
+        self.init(title: title, bold: true, percent: percent, showGlyph: false, size: 14)
+        setFrameSize(NSSize(width: Self.rowWidth, height: 34))
     }
 
     static func glyphName(percent: Int?, charging: Bool) -> String {

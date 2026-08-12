@@ -245,7 +245,7 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         history.submenu = buildHistoryMenu()
         menu.addItem(history)
 
-        let quit = NSMenuItem(title: "Quit Batteries", action: #selector(NSApplication.terminate(_:)),
+        let quit = NSMenuItem(title: "Quit PowerDeck", action: #selector(NSApplication.terminate(_:)),
                               keyEquivalent: "q")
         menu.addItem(quit)
     }

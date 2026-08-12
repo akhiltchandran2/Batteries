@@ -5,15 +5,15 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>Batteries</string>
+	<string>PowerDeck</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.akhilchandran.batteries</string>
+	<string>com.akhilchandran.powerdeck</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Batteries</string>
+	<string>PowerDeck</string>
 	<key>CFBundleDisplayName</key>
-	<string>Batteries</string>
+	<string>PowerDeck</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundlePackageType</key>

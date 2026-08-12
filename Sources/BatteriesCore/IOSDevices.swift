@@ -22,7 +22,7 @@ enum IOSDevices {
     private static var cacheURL: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory,
                                            in: .userDomainMask)[0]
-            .appendingPathComponent("Batteries", isDirectory: true)
+            .appendingPathComponent("PowerDeck", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("ios-cache.json")
     }

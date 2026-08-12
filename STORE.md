@@ -1,3 +1,3 @@
-Batteries shows battery levels for your Mac and every device connected to it — iPhone, iPad, Apple Watch, AirPods, and other Bluetooth accessories — right from the menu bar.
+PowerDeck shows battery levels for your Mac and every device connected to it — iPhone, iPad, Apple Watch, AirPods, and other Bluetooth accessories — right from the menu bar.
 
 It reads your Mac's own battery via IOKit, nearby Apple devices via Bluetooth Continuity (no cable needed), and — if you install libimobiledevice — precise, always-on iPhone/iPad percentages over USB or Wi-Fi. Low-battery and full-charge notifications are per-device and configurable, a 24-hour history graph tracks drain and charge cycles, and the menu bar icon fills proportionally to your Mac's actual charge, turning red when critical.
