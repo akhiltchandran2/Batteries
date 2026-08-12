@@ -2,6 +2,7 @@
 .build/
 # Packaged app output
 build/
+build-qstore/
 # macOS noise
 .DS_Store
 # Xcode per-user state (created on open, not part of the project)

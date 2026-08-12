@@ -1,5 +1,5 @@
 import XCTest
-@testable import Batteries
+@testable import BatteriesCore
 
 final class IOSDevicesTests: XCTestCase {
     // MARK: - parseUDID(from:)

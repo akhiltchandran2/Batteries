@@ -1,5 +1,5 @@
 import XCTest
-@testable import Batteries
+@testable import BatteriesCore
 
 final class BluetoothBatteriesTests: XCTestCase {
     func testParse_airPodsWithLeftRightCase() {

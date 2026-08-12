@@ -1,11 +1,16 @@
 import AppKit
 import ServiceManagement
 
-final class StatusItemController: NSObject, NSMenuDelegate {
+public final class StatusItemController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let store: BatteryStore
     private let menu = NSMenu()
     private var menuIsOpen = false
+
+    /// Items appended to the App Settings submenu by a build variant — e.g.
+    /// QStore's "Check for Updates…" item. Empty for the plain build, so
+    /// its menu is unchanged.
+    public var extraSettingsItems: [NSMenuItem] = []
 
     /// Rows built during the last rebuildMenu(), kept around so a refresh
     /// that completes while the menu is on screen can update displayed
@@ -68,18 +73,18 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
     }
 
-    func menuWillOpen(_ menu: NSMenu) {
+    public func menuWillOpen(_ menu: NSMenu) {
         menuIsOpen = true
     }
 
-    func menuDidClose(_ menu: NSMenu) {
+    public func menuDidClose(_ menu: NSMenu) {
         menuIsOpen = false
         rebuildMenu()
     }
 
     // MARK: - Menu
 
-    func menuNeedsUpdate(_ menu: NSMenu) {
+    public func menuNeedsUpdate(_ menu: NSMenu) {
         store.refresh(reason: "menu-open") // kick a background refresh; menu shows cached data
         rebuildMenu()
     }
@@ -332,6 +337,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
                                   action: #selector(showIOSHelp), keyEquivalent: "")
             hint.target = self
             prefsMenu.addItem(hint)
+        }
+
+        if !extraSettingsItems.isEmpty {
+            prefsMenu.addItem(.separator())
+            for item in extraSettingsItems {
+                prefsMenu.addItem(item)
+            }
         }
 
         prefsMenu.addItem(.separator())

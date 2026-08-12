@@ -1,7 +1,7 @@
 import AppKit
 import Network
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+public final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = BatteryStore()
     private var statusController: StatusItemController?
     private var autoRefreshTimer: Timer?
@@ -15,7 +15,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let acRefreshInterval: TimeInterval = 60
     private static let batteryRefreshInterval: TimeInterval = 300
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    /// Lets a build variant extend the app right after launch — e.g. QStore
+    /// wiring up its Sparkle updater and appending a "Check for Updates…"
+    /// item. nil for the plain build, so behavior there is unchanged.
+    public var onLaunch: ((StatusItemController) -> Void)?
+
+    public override init() {
+        super.init()
+    }
+
+    public func applicationDidFinishLaunching(_ notification: Notification) {
         NotificationManager.shared.requestAuthorization()
 
         let controller = StatusItemController(store: store)
@@ -50,6 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(didWake),
             name: NSWorkspace.didWakeNotification, object: nil)
+
+        onLaunch?(controller)
     }
 
     @objc private func didWake() {

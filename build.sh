@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-swift build -c release
+swift build -c release --product Batteries
 
 APP="build/Batteries.app"
 rm -rf "$APP"
