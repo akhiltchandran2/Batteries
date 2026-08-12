@@ -7,9 +7,10 @@ swift build -c release --product Batteries
 
 APP="build/Batteries.app"
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp ".build/release/Batteries" "$APP/Contents/MacOS/Batteries"
 cp "Resources/Info.plist" "$APP/Contents/Info.plist"
+cp "Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 
 # Ad-hoc sign so notifications and launch-at-login work.
 codesign --force --sign - "$APP"
