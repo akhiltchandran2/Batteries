@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="${APP_VERSION:-1.0.0}"
+VERSION="${APP_VERSION:-1.1}"
 BUILD="${APP_BUILD:-$(date +%y%m%d%H%M)}"
 
 echo "Building PowerDeck $VERSION ($BUILD) for QStore…"

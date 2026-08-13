@@ -23,6 +23,21 @@ enum Preferences {
         set { defaults.set(newValue, forKey: "notifyWhenFullyCharged") }
     }
 
+    /// Whether to scan for and show energy-intensive apps in the menu.
+    /// On by default (scanning is throttled), off for battery purists who
+    /// don't want the periodic `top` call at all.
+    static var showEnergyApps: Bool {
+        get { defaults.object(forKey: "showEnergyApps") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "showEnergyApps") }
+    }
+
+    /// Whether to notify when an app is using a lot of energy. Off by
+    /// default — this is the interrupting one.
+    static var notifyEnergyApps: Bool {
+        get { defaults.object(forKey: "notifyEnergyApps") as? Bool ?? false }
+        set { defaults.set(newValue, forKey: "notifyEnergyApps") }
+    }
+
     // MARK: - Per-device notification muting
 
     static var mutedDeviceIDs: Set<String> {

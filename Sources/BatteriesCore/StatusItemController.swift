@@ -29,6 +29,8 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
     private var healthRow: InfoRowView?
     private var deviceRows: [String: DeviceRowSet] = [:]
     private var lastDeviceOrder: [String] = []
+    private var lowPowerItem: NSMenuItem?
+    private var renderedEnergyNames: [String] = []
 
     private static let clockFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -120,6 +122,11 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         let healthText = store.health.flatMap(Self.healthText(for:))
         guard (healthRow != nil) == (healthText != nil) else { return false }
 
+        // Low Power Mode availability appearing/disappearing, or the energy
+        // app list changing, are structural — defer to a full rebuild.
+        guard (lowPowerItem != nil) == (store.lowPowerEnabled != nil) else { return false }
+        guard store.energyApps.map(\.name) == renderedEnergyNames else { return false }
+
         let devices = store.devices
         guard devices.map(\.id) == lastDeviceOrder else { return false }
         for device in devices {
@@ -131,6 +138,9 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         }
 
         // Structure matches exactly — safe to update every value in place.
+        if let lowPower = store.lowPowerEnabled {
+            lowPowerItem?.state = lowPower ? .on : .off
+        }
         headerRow?.update(percent: mac?.percent, charging: mac?.isCharging ?? false)
         if let mac {
             powerSourceRow?.update(text: "Power Source: \(mac.powerSource ?? "Unknown")")
@@ -164,6 +174,8 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         healthRow = nil
         deviceRows = [:]
         lastDeviceOrder = []
+        lowPowerItem = nil
+        renderedEnergyNames = []
 
         // ── Header: Battery ................ 84% ─────────────────────
         let mac = store.mac
@@ -189,6 +201,17 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
                 healthRow = row
             }
         }
+
+        // ── Low Power Mode (quick toggle) ────────────────────────────
+        if let lowPower = store.lowPowerEnabled {
+            let item = NSMenuItem(title: "Low Power Mode",
+                                  action: #selector(toggleLowPowerMode), keyEquivalent: "")
+            item.target = self
+            item.state = lowPower ? .on : .off
+            menu.addItem(item)
+            lowPowerItem = item
+        }
+
         menu.addItem(.separator())
 
         // ── Connected devices ────────────────────────────────────────
@@ -231,6 +254,22 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         }
         menu.addItem(.separator())
 
+        // ── Apps using significant energy ────────────────────────────
+        if !store.energyApps.isEmpty {
+            addInfo("Apps Using Significant Energy")
+            for app in store.energyApps {
+                let item = NSMenuItem(title: app.name,
+                                      action: #selector(activateEnergyApp(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = app.appPath
+                item.image = Self.appIcon(path: app.appPath)
+                item.toolTip = "Bring \(app.name) to the front"
+                menu.addItem(item)
+            }
+            renderedEnergyNames = store.energyApps.map(\.name)
+            menu.addItem(.separator())
+        }
+
         // ── Battery Preferences ──────────────────────────────────────
         let sysPrefs = NSMenuItem(title: "Battery Preferences…",
                                   action: #selector(openBatterySettings), keyEquivalent: "")
@@ -248,6 +287,13 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         let quit = NSMenuItem(title: "Quit PowerDeck", action: #selector(NSApplication.terminate(_:)),
                               keyEquivalent: "q")
         menu.addItem(quit)
+    }
+
+    /// A small icon for an app path, for energy-app rows.
+    private static func appIcon(path: String) -> NSImage {
+        let icon = NSWorkspace.shared.icon(forFile: path)
+        icon.size = NSSize(width: 16, height: 16)
+        return icon
     }
 
     private func buildHistoryMenu() -> NSMenu {
@@ -317,6 +363,22 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         }
         devicesItem.submenu = devicesMenu
         prefsMenu.addItem(devicesItem)
+
+        prefsMenu.addItem(.separator())
+
+        let showEnergy = NSMenuItem(title: "Show Energy-Intensive Apps",
+                                    action: #selector(toggleShowEnergy), keyEquivalent: "")
+        showEnergy.target = self
+        showEnergy.state = Preferences.showEnergyApps ? .on : .off
+        prefsMenu.addItem(showEnergy)
+
+        let notifyEnergy = NSMenuItem(title: "Notify About Energy-Intensive Apps",
+                                      action: #selector(toggleNotifyEnergy), keyEquivalent: "")
+        notifyEnergy.target = self
+        notifyEnergy.state = Preferences.notifyEnergyApps ? .on : .off
+        // Notifying is only meaningful if we're scanning at all.
+        notifyEnergy.isEnabled = Preferences.showEnergyApps
+        prefsMenu.addItem(notifyEnergy)
 
         prefsMenu.addItem(.separator())
 
@@ -395,6 +457,36 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func toggleDeviceMute(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? String else { return }
         Preferences.toggleMuted(deviceID: id)
+    }
+
+    @objc private func toggleShowEnergy() {
+        Preferences.showEnergyApps.toggle()
+        if Preferences.showEnergyApps {
+            store.refresh(reason: "manual")
+        }
+    }
+
+    @objc private func toggleNotifyEnergy() {
+        Preferences.notifyEnergyApps.toggle()
+        if Preferences.notifyEnergyApps {
+            NotificationManager.shared.requestAuthorization()
+        }
+    }
+
+    @objc private func toggleLowPowerMode() {
+        // pmset needs root, so this shows the native admin prompt and blocks
+        // until the user responds — run it off the main thread, then refresh
+        // to reflect the new state.
+        let target = !(store.lowPowerEnabled ?? false)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            PowerMode.setLowPower(target)
+            DispatchQueue.main.async { self?.store.reloadLowPowerMode() }
+        }
+    }
+
+    @objc private func activateEnergyApp(_ sender: NSMenuItem) {
+        guard let path = sender.representedObject as? String else { return }
+        NSWorkspace.shared.open(URL(fileURLWithPath: path))
     }
 
     @objc private func setThreshold(_ sender: NSMenuItem) {

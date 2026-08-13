@@ -8,11 +8,22 @@ final class BatteryStore {
     private(set) var health: BatteryHealthInfo?
     private(set) var devices: [DeviceBattery] = []
     private(set) var lastUpdated: Date?
+    /// Low Power Mode state, or nil if the Mac doesn't report it.
+    private(set) var lowPowerEnabled: Bool?
+    /// Apps currently using significant energy (empty when the feature is off).
+    private(set) var energyApps: [EnergyApp] = []
 
     var onUpdate: (() -> Void)?
 
     private let queue = DispatchQueue(label: "com.batteries.refresh", qos: .utility)
     private var refreshing = false
+
+    /// Energy scanning shells out to `top` (a couple seconds, real CPU), so
+    /// it runs at most this often — far less than the battery refresh — to
+    /// keep a battery monitor from being an energy drain itself. Touched only
+    /// on the serial refresh queue.
+    private static let energyScanInterval: TimeInterval = 180
+    private var lastEnergyScan: Date?
 
     /// Each refresh shells out to system_profiler and libimobiledevice, which
     /// costs real CPU. Rapid triggers (opening the menu a few times, a burst
@@ -67,11 +78,30 @@ final class BatteryStore {
                 }
             }
 
+            let lowPower = PowerMode.lowPowerEnabled()
+
+            // Freshly-scanned energy apps, or nil to mean "kept the previous
+            // list this cycle" (throttled). Runs on this serial queue, so the
+            // lastEnergyScan bookkeeping needs no extra locking.
+            var freshEnergy: [EnergyApp]? = nil
+            if Preferences.showEnergyApps {
+                let now = Date()
+                let due = (self?.lastEnergyScan).map { now.timeIntervalSince($0) >= Self.energyScanInterval } ?? true
+                if due {
+                    freshEnergy = EnergyMonitor.scan()
+                    self?.lastEnergyScan = now
+                }
+            } else {
+                freshEnergy = []
+            }
+
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.mac = mac
                 self.health = health
                 self.devices = devices
+                self.lowPowerEnabled = lowPower
+                if let freshEnergy { self.energyApps = freshEnergy }
                 self.lastUpdated = Date()
                 self.refreshing = false
                 let elapsed = Date().timeIntervalSince(start)
@@ -82,6 +112,11 @@ final class BatteryStore {
                 if let mac { all.append(mac) }
                 Preferences.registerDevices(all)
                 NotificationManager.shared.check(devices: all)
+                // Only evaluate energy alerts on a fresh scan, not when we
+                // reused the throttled list.
+                if let freshEnergy {
+                    NotificationManager.shared.checkEnergy(apps: freshEnergy)
+                }
 
                 WidgetSnapshot(
                     mac: mac.map {
@@ -94,6 +129,19 @@ final class BatteryStore {
                     },
                     generatedAt: Date()
                 ).write()
+            }
+        }
+    }
+
+    /// Re-reads only the Low Power Mode state (cheap) and notifies, so the
+    /// menu's checkmark reflects a toggle right away instead of waiting for
+    /// the next throttled full refresh.
+    func reloadLowPowerMode() {
+        queue.async { [weak self] in
+            let lowPower = PowerMode.lowPowerEnabled()
+            DispatchQueue.main.async {
+                self?.lowPowerEnabled = lowPower
+                self?.onUpdate?()
             }
         }
     }

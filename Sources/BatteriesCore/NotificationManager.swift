@@ -12,6 +12,8 @@ final class NotificationManager {
     private var lowNotified = Set<String>()
     /// Devices already alerted this charge cycle.
     private var fullNotified = Set<String>()
+    /// Apps already alerted for high energy, cleared once they calm down.
+    private var energyNotified = Set<String>()
 
     /// Charge alerts only make sense for devices that report reliable levels;
     /// Bluetooth accessories often sit at 100% in their case for hours.
@@ -76,6 +78,27 @@ final class NotificationManager {
                 }
             }
         }
+    }
+
+    /// Alerts when an app crosses the high-energy bar, once per app until it
+    /// drops back down (hysteresis on the display threshold), so a hog that
+    /// hovers near the line doesn't notify repeatedly.
+    func checkEnergy(apps: [EnergyApp]) {
+        guard available, Preferences.notifyEnergyApps else { return }
+        let hot = Set(apps.filter { $0.impact >= EnergyMonitor.notifyThreshold }.map(\.name))
+
+        for app in apps where app.impact >= EnergyMonitor.notifyThreshold {
+            if !energyNotified.contains(app.name) {
+                energyNotified.insert(app.name)
+                send(id: "energy-\(app.name)",
+                     title: "\(app.name) is using significant energy",
+                     body: "It's a heavy battery drain right now. Quit it to save power.")
+            }
+        }
+        // Re-arm apps that have calmed below the display threshold, or dropped
+        // out of the list entirely.
+        let stillElevated = Set(apps.filter { $0.impact >= EnergyMonitor.displayThreshold }.map(\.name))
+        energyNotified.formIntersection(stillElevated.union(hot))
     }
 
     private func send(id: String, title: String, body: String) {
