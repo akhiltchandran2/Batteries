@@ -21,6 +21,7 @@ final class AirPodsProximityTests: XCTestCase {
         XCTAssertEqual(b?.left, 80)
         XCTAssertEqual(b?.right, 80)
         XCTAssertEqual(b?.caseLevel, 80)
+        XCTAssertEqual(b?.model, 0x2019)   // AirPods 4
     }
 
     func testDecode_rejectsNonProximity() {

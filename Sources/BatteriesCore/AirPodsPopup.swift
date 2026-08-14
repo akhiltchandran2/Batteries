@@ -68,7 +68,7 @@ final class AirPodsPopup {
 
         // One combined buds+case product image for the model, sized to a fixed
         // height with the aspect ratio preserved.
-        let art = NSImageView(image: deviceImage(for: name))
+        let art = NSImageView(image: deviceImage(model: battery.model, name: name))
         art.imageScaling = .scaleProportionallyUpOrDown
         art.translatesAutoresizingMaskIntoConstraints = false
         let imageHeight: CGFloat = 132
@@ -158,22 +158,38 @@ final class AirPodsPopup {
 
     // MARK: - Device → image
 
-    /// The bundled product image for the model, or an SF Symbol fallback.
-    private func deviceImage(for name: String) -> NSImage {
-        let n = name.lowercased()
-        let asset: String
-        if n.contains("max") { asset = "airpods-max" }
-        else if n.contains("pro") { asset = (n.contains("3") ? "airpods-pro3" : "airpods-pro") }
-        else if n.contains("4") { asset = "airpods-4" }
-        else if n.contains("3") { asset = "airpods-3" }
-        else { asset = "airpods" }
-
+    /// The bundled product image, chosen from the Apple model identifier in the
+    /// broadcast (the device name has no model number), falling back to a
+    /// name guess, then to an SF Symbol.
+    private func deviceImage(model: UInt16, name: String) -> NSImage {
+        let asset = assetForModel(model) ?? assetForName(name)
         if let url = Bundle.main.url(forResource: asset, withExtension: "png", subdirectory: "AirPodsArt"),
            let image = NSImage(contentsOf: url) {
             return image
         }
-        // Fallback for a model we have no art for (or a non-bundled dev run).
         return NSImage(systemSymbolName: "airpods", accessibilityDescription: nil) ?? NSImage()
+    }
+
+    /// Apple proximity model IDs (0x20XX) → bundled art. nil = unknown model.
+    private func assetForModel(_ model: UInt16) -> String? {
+        switch model {
+        case 0x2002, 0x200F: return "airpods"        // AirPods 1 / 2
+        case 0x2013: return "airpods-3"              // AirPods 3
+        case 0x2019, 0x201B: return "airpods-4"      // AirPods 4 / 4 ANC
+        case 0x200E: return "airpods-pro"            // AirPods Pro
+        case 0x2014, 0x2024: return "airpods-pro"    // AirPods Pro 2 (Lightning / USB-C)
+        case 0x200A, 0x201F: return "airpods-max"    // AirPods Max (Lightning / USB-C)
+        default: return nil
+        }
+    }
+
+    private func assetForName(_ name: String) -> String {
+        let n = name.lowercased()
+        if n.contains("max") { return "airpods-max" }
+        if n.contains("pro") { return n.contains("3") ? "airpods-pro3" : "airpods-pro" }
+        if n.contains("4") { return "airpods-4" }
+        if n.contains("3") { return "airpods-3" }
+        return "airpods"
     }
 
     // MARK: - Helpers

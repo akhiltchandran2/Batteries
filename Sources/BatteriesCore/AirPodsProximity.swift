@@ -8,6 +8,9 @@ public struct AirPodsBattery: Equatable {
     public let leftCharging: Bool
     public let rightCharging: Bool
     public let caseCharging: Bool
+    /// Apple model identifier (e.g. 0x2019 = AirPods 4), from the broadcast —
+    /// the device name doesn't include the model, so this is how we pick art.
+    public let model: UInt16
 
     /// The lowest present pod level — a reasonable single number for a menu row.
     public var minPod: Int? { [left, right].compactMap { $0 }.min() }
@@ -28,6 +31,10 @@ public enum AirPodsProximity {
               bytes[0] == 0x4C, bytes[1] == 0x00, bytes[2] == 0x07 else {
             return nil
         }
+
+        // bytes[5..6] carry the Apple model identifier, high byte last
+        // (0x20 0x19 -> 0x2019 = AirPods 4).
+        let model = (UInt16(bytes[6]) << 8) | UInt16(bytes[5])
 
         // bytes[7] status: bit 1 of its high nibble says which pod is "primary",
         // i.e. whether the left/right nibbles are flipped.
@@ -53,7 +60,8 @@ public enum AirPodsProximity {
             // Charging nibble: bit0 right pod, bit1 left pod, bit2 case.
             leftCharging: (chargeBits & 0x02) != 0,
             rightCharging: (chargeBits & 0x01) != 0,
-            caseCharging: (chargeBits & 0x04) != 0
+            caseCharging: (chargeBits & 0x04) != 0,
+            model: model
         )
     }
 }
