@@ -30,6 +30,8 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>© Akhil Chandran</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>PowerDeck uses Bluetooth to connect and disconnect your devices and to read AirPods battery levels.</string>
 	<key>SUFeedURL</key>
 	<string>https://qstore.pages.dev/apps/powerdeck/appcast.xml</string>
 	<key>SUPublicEDKey</key>

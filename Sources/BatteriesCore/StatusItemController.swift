@@ -31,6 +31,9 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
     private var lastDeviceOrder: [String] = []
     private var lowPowerItem: NSMenuItem?
     private var renderedEnergyNames: [String] = []
+    /// The "Connect / Disconnect" submenu, populated lazily when opened so
+    /// IOBluetooth (and its permission prompt) is only touched on demand.
+    private var bluetoothMenu: NSMenu?
 
     private static let clockFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -87,8 +90,35 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
     // MARK: - Menu
 
     public func menuNeedsUpdate(_ menu: NSMenu) {
+        // The Bluetooth submenu populates itself on open, so IOBluetooth is
+        // only queried when the user actually wants to connect something.
+        if menu === bluetoothMenu {
+            rebuildBluetoothMenu(menu)
+            return
+        }
         store.refresh(reason: "menu-open") // kick a background refresh; menu shows cached data
         rebuildMenu()
+    }
+
+    private func rebuildBluetoothMenu(_ menu: NSMenu) {
+        menu.removeAllItems()
+        let devices = BluetoothControl.pairedDevices()
+        if devices.isEmpty {
+            let empty = NSMenuItem(title: "No Bluetooth devices", action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            menu.addItem(empty)
+            return
+        }
+        for device in devices {
+            let item = NSMenuItem(title: device.name,
+                                  action: #selector(toggleBluetoothDevice(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = device.address
+            // Checkmark = connected; clicking toggles it.
+            item.state = device.connected ? .on : .off
+            item.toolTip = device.connected ? "Disconnect \(device.name)" : "Connect \(device.name)"
+            menu.addItem(item)
+        }
     }
 
     private static func chargeStatusText(for mac: DeviceBattery) -> String? {
@@ -176,6 +206,7 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         lastDeviceOrder = []
         lowPowerItem = nil
         renderedEnergyNames = []
+        bluetoothMenu = nil
 
         // ── Header: Battery ................ 84% ─────────────────────
         let mac = store.mac
@@ -269,6 +300,16 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
             renderedEnergyNames = store.energyApps.map(\.name)
             menu.addItem(.separator())
         }
+
+        // ── Connect / Disconnect (Bluetooth) ─────────────────────────
+        let btItem = NSMenuItem(title: "Connect / Disconnect", action: nil, keyEquivalent: "")
+        let btMenu = NSMenu()
+        btMenu.delegate = self          // populated lazily in menuNeedsUpdate
+        btItem.submenu = btMenu
+        bluetoothMenu = btMenu
+        menu.addItem(btItem)
+
+        menu.addItem(.separator())
 
         // ── Battery Preferences ──────────────────────────────────────
         let sysPrefs = NSMenuItem(title: "Battery Preferences…",
@@ -487,6 +528,15 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func activateEnergyApp(_ sender: NSMenuItem) {
         guard let path = sender.representedObject as? String else { return }
         NSWorkspace.shared.open(URL(fileURLWithPath: path))
+    }
+
+    @objc private func toggleBluetoothDevice(_ sender: NSMenuItem) {
+        guard let address = sender.representedObject as? String else { return }
+        // openConnection/closeConnection block briefly — do it off the main
+        // thread so the menu closes cleanly.
+        DispatchQueue.global(qos: .userInitiated).async {
+            BluetoothControl.toggle(address: address)
+        }
     }
 
     @objc private func setThreshold(_ sender: NSMenuItem) {

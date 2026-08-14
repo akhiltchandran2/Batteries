@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 # Publisher passes these in; both have safe defaults. BUILD is a counter that
 # must always increase — defaulting to a timestamp guarantees that with no
 # bookkeeping.
-VERSION="${APP_VERSION:-1.1}"
+VERSION="${APP_VERSION:-1.2}"
 BUILD="${APP_BUILD:-$(date +%y%m%d%H%M)}"
 
 echo "Building PowerDeck $VERSION ($BUILD)…"

@@ -1,3 +1,7 @@
+## 1.2
+
+- Connect or disconnect your Bluetooth devices (AirPods, headphones, Magic mouse/keyboard/trackpad) right from the menu — a new "Connect / Disconnect" submenu with a checkmark for what's connected. macOS asks for Bluetooth permission the first time.
+
 ## 1.1
 
 - Quick Low Power Mode toggle right in the menu (authorizes with your Mac password, since macOS requires admin rights to change it).
