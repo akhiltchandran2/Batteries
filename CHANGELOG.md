@@ -1,3 +1,7 @@
+## 1.4
+
+- AirPods pop-up: open your AirPods case next to the Mac and an iPhone-style card drops down showing the earbud and case battery, with a one-click Connect. Turn it on in App Settings → "AirPods Pop-up When Case Opens" (it uses always-on Bluetooth scanning, so it's off by default).
+
 ## 1.3
 
 - Battery percentage for Bluetooth accessories that macOS doesn't otherwise report — mice, keyboards, and headphones that expose the standard Bluetooth battery service (e.g. an MX Master) now show their level instead of "—", read directly over Bluetooth.

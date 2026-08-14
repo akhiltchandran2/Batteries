@@ -38,6 +38,14 @@ enum Preferences {
         set { defaults.set(newValue, forKey: "notifyEnergyApps") }
     }
 
+    /// Show the AirPods pop-up card when the case opens nearby. Off by
+    /// default — it needs always-on Bluetooth scanning, which has a battery
+    /// cost, so it's the user's choice to turn on.
+    static var airPodsPopupEnabled: Bool {
+        get { defaults.object(forKey: "airPodsPopupEnabled") as? Bool ?? false }
+        set { defaults.set(newValue, forKey: "airPodsPopupEnabled") }
+    }
+
     // MARK: - Per-device notification muting
 
     static var mutedDeviceIDs: Set<String> {

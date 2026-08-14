@@ -31,6 +31,18 @@ enum BluetoothControl {
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    /// Connects a paired device found by name (used by the AirPods pop-up,
+    /// which only knows the broadcast name, not the address). No-op if already
+    /// connected or not found.
+    static func connect(name: String) {
+        guard let devices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice],
+              let device = devices.first(where: { $0.name == name }) else { return }
+        if !device.isConnected() {
+            let result = device.openConnection()
+            Log.devices.debug("connect by name \(name, privacy: .public): \(result)")
+        }
+    }
+
     /// Connects the device if disconnected, or disconnects it if connected.
     /// The open/close calls block briefly, so run off the main thread.
     static func toggle(address: String) {

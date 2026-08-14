@@ -8,6 +8,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pathMonitor: NWPathMonitor?
     private var pendingRefresh: DispatchWorkItem?
     private var lastPathStatus: NWPath.Status?
+    private let airPodsPopup = AirPodsPopup()
 
     /// A battery monitor that itself drains the battery defeats the point.
     /// Scan often while plugged in, back off on battery power, and let macOS
@@ -59,6 +60,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(didWake),
             name: NSWorkspace.didWakeNotification, object: nil)
+
+        // AirPods case-open pop-up (opt-in). The monitor only scans while
+        // enabled; showing the card and connecting happen on the main thread.
+        AirPodsMonitor.shared.onCaseOpen = { [weak self] reading in
+            self?.airPodsPopup.show(name: reading.name, battery: reading.battery)
+        }
+        AirPodsMonitor.shared.setEnabled(Preferences.airPodsPopupEnabled)
 
         onLaunch?(controller)
     }

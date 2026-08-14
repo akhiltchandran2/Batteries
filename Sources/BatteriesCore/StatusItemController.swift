@@ -423,6 +423,16 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
 
         prefsMenu.addItem(.separator())
 
+        let airpods = NSMenuItem(title: "AirPods Pop-up When Case Opens",
+                                 action: #selector(toggleAirPodsPopup), keyEquivalent: "")
+        airpods.target = self
+        airpods.state = Preferences.airPodsPopupEnabled ? .on : .off
+        airpods.toolTip = "Show a battery card when you open your AirPods case nearby "
+                        + "(uses always-on Bluetooth scanning)"
+        prefsMenu.addItem(airpods)
+
+        prefsMenu.addItem(.separator())
+
         if Bundle.main.bundleIdentifier != nil {
             let loginToggle = NSMenuItem(title: "Launch at Login",
                                          action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
@@ -512,6 +522,11 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         if Preferences.notifyEnergyApps {
             NotificationManager.shared.requestAuthorization()
         }
+    }
+
+    @objc private func toggleAirPodsPopup() {
+        Preferences.airPodsPopupEnabled.toggle()
+        AirPodsMonitor.shared.setEnabled(Preferences.airPodsPopupEnabled)
     }
 
     @objc private func toggleLowPowerMode() {

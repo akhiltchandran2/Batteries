@@ -59,11 +59,16 @@ final class BatteryStore {
             // matching by device name.
             BLEBatteryReader.shared.refresh()
             bluetooth = bluetooth.map { device in
-                guard device.percent == nil,
-                      let ble = BLEBatteryReader.shared.battery(forName: device.name) else {
-                    return device
+                guard device.percent == nil else { return device }
+                // Standard GATT battery service (mice, keyboards, headphones).
+                if let ble = BLEBatteryReader.shared.battery(forName: device.name) {
+                    return device.withPercent(ble)
                 }
-                return device.withPercent(ble)
+                // AirPods proximity broadcast (only when the pop-up scanner is on).
+                if let ap = AirPodsMonitor.shared.battery(forName: device.name)?.minPod {
+                    return device.withPercent(ap)
+                }
+                return device
             }
 
             var devices = ios + bluetooth
