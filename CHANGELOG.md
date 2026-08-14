@@ -1,10 +1,11 @@
 ## 1.3
 
-- Battery percentage for Bluetooth accessories that macOS doesn't otherwise report — mice, keyboards, and headphones that expose the standard Bluetooth battery service (e.g. an MX Master) now show their level instead of "—", read directly over Bluetooth. Uses the Bluetooth permission granted for connect/disconnect.
+- Battery percentage for Bluetooth accessories that macOS doesn't otherwise report — mice, keyboards, and headphones that expose the standard Bluetooth battery service (e.g. an MX Master) now show their level instead of "—", read directly over Bluetooth.
+- Connect or disconnect your Bluetooth devices (AirPods, headphones, Magic mouse/keyboard/trackpad) right from the menu — a new "Connect / Disconnect" submenu with a checkmark for what's connected. macOS asks for Bluetooth permission the first time.
 
 ## 1.2
 
-- Connect or disconnect your Bluetooth devices (AirPods, headphones, Magic mouse/keyboard/trackpad) right from the menu — a new "Connect / Disconnect" submenu with a checkmark for what's connected. macOS asks for Bluetooth permission the first time.
+- Connect or disconnect your Bluetooth devices right from the menu (a new "Connect / Disconnect" submenu). Superseded by 1.3, which ships this plus BLE battery readings.
 
 ## 1.1
 
