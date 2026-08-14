@@ -79,10 +79,16 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     public func menuWillOpen(_ menu: NSMenu) {
+        // These fire for submenus too (the Bluetooth submenu shares this
+        // delegate) — only track open/close for the top-level menu, and never
+        // rebuild the main menu while a submenu is closing (that raises an
+        // NSInternalInconsistencyException mid-session).
+        guard menu === self.menu else { return }
         menuIsOpen = true
     }
 
     public func menuDidClose(_ menu: NSMenu) {
+        guard menu === self.menu else { return }
         menuIsOpen = false
         rebuildMenu()
     }
