@@ -31,7 +31,7 @@ struct DeviceBattery: Codable {
     let name: String
     let kind: Kind
     /// nil when the device is connected but doesn't report a battery level.
-    let percent: Int?
+    var percent: Int?
     var isCharging: Bool = false
     var powerSource: String? = nil
     var fullyCharged: Bool = false
@@ -45,6 +45,14 @@ struct DeviceBattery: Codable {
     /// Set when the device isn't in the current scan at all but was seen
     /// recently — rendered dimmed instead of silently disappearing.
     var unreachableSince: Date? = nil
+
+    /// A copy with the battery percent filled in — used when a secondary
+    /// source (a BLE GATT read) has a level system_profiler didn't report.
+    func withPercent(_ newPercent: Int) -> DeviceBattery {
+        var copy = self
+        copy.percent = newPercent
+        return copy
+    }
 }
 
 /// Mac battery health, shown under the header.

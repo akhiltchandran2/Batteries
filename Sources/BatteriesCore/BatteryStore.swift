@@ -50,7 +50,21 @@ final class BatteryStore {
             let mac = MacBattery.read()
             let health = BatteryHealth.read()
             let ios = IOSDevices.read()
-            let bluetooth = BluetoothBatteries.read()
+            var bluetooth = BluetoothBatteries.read()
+
+            // Fill in battery for BLE accessories (e.g. an MX Master) that
+            // system_profiler reports as "—" but that expose the standard GATT
+            // Battery Service — read directly over CoreBluetooth. Kick a fresh
+            // (throttled) read, then merge whatever's cached from prior reads,
+            // matching by device name.
+            BLEBatteryReader.shared.refresh()
+            bluetooth = bluetooth.map { device in
+                guard device.percent == nil,
+                      let ble = BLEBatteryReader.shared.battery(forName: device.name) else {
+                    return device
+                }
+                return device.withPercent(ble)
+            }
 
             var devices = ios + bluetooth
             // Fold in accessories that were seen before but are missing from
