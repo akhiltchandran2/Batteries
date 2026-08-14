@@ -39,8 +39,9 @@ final class BatteryPillView: NSView {
 }
 
 /// The AirBuddy-style card: a white panel in the center of the screen with the
-/// AirPods name, a "Click to connect" hint, device-specific earbud and case
-/// images, and their battery levels. Click the card to connect; × to dismiss.
+/// AirPods name, a "Click to connect" hint, a photographic buds-and-case image
+/// for the specific model, and the earbud and case battery levels. Click the
+/// card to connect; × to dismiss.
 final class AirPodsPopup {
     private var panel: NSPanel?
     private var dismissWork: DispatchWorkItem?
@@ -51,10 +52,8 @@ final class AirPodsPopup {
         deviceName = name
         let connected = isConnected(name: name)
 
-        // White rounded card — forced light appearance so semantic text colors
-        // read correctly on white regardless of the system theme.
         let card = ClickView()
-        card.appearance = NSAppearance(named: .aqua)
+        card.appearance = NSAppearance(named: .aqua)   // light card in any theme
         card.wantsLayer = true
         card.layer?.backgroundColor = NSColor.white.cgColor
         card.layer?.cornerRadius = 18
@@ -67,49 +66,56 @@ final class AirPodsPopup {
                              size: 13, weight: .regular, color: NSColor(white: 0.6, alpha: 1))
         subtitle.alignment = .center
 
-        // Columns: earbuds, and (for non-Max) the case.
-        var columns: [NSView] = [deviceColumn(image: budsSymbol(for: name),
-                                              level: battery.minPod,
-                                              charging: battery.leftCharging || battery.rightCharging)]
-        if let caseSym = caseSymbol(for: name) {
-            columns.append(deviceColumn(image: caseSym,
-                                        level: battery.caseLevel,
-                                        charging: battery.caseCharging))
-        }
-        let row = NSStackView(views: columns.compactMap { $0 })
-        row.orientation = .horizontal
-        row.spacing = 40
-        row.distribution = .fillEqually
-        row.alignment = .top
+        // One combined buds+case product image for the model, sized to a fixed
+        // height with the aspect ratio preserved.
+        let art = NSImageView(image: deviceImage(for: name))
+        art.imageScaling = .scaleProportionallyUpOrDown
+        art.translatesAutoresizingMaskIntoConstraints = false
+        let imageHeight: CGFloat = 132
+        art.heightAnchor.constraint(equalToConstant: imageHeight).isActive = true
+        art.widthAnchor.constraint(lessThanOrEqualToConstant: 220).isActive = true
 
-        let stack = NSStackView(views: [title, subtitle, row])
+        // Both batteries below, side by side: earbuds and case.
+        var cells: [NSView] = []
+        if let pods = battery.minPod {
+            cells.append(batteryCell("AirPods", pods,
+                                     charging: battery.leftCharging || battery.rightCharging))
+        }
+        if let caseLevel = battery.caseLevel {
+            cells.append(batteryCell("Case", caseLevel, charging: battery.caseCharging))
+        }
+        let batteries = NSStackView(views: cells)
+        batteries.orientation = .horizontal
+        batteries.spacing = 44
+        batteries.alignment = .centerY
+
+        let stack = NSStackView(views: [title, subtitle, art, batteries])
         stack.orientation = .vertical
         stack.spacing = 6
         stack.alignment = .centerX
-        stack.setCustomSpacing(24, after: subtitle)
+        stack.setCustomSpacing(16, after: subtitle)
+        stack.setCustomSpacing(18, after: art)
         stack.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(stack)
 
-        // Close button, top-left.
         let close = NSButton(image: NSImage(systemSymbolName: "xmark.circle.fill",
                                             accessibilityDescription: "Close") ?? NSImage(),
                              target: self, action: #selector(closeTapped))
         close.isBordered = false
-        close.bezelStyle = .regularSquare
-        close.contentTintColor = NSColor(white: 0.75, alpha: 1)
+        close.contentTintColor = NSColor(white: 0.78, alpha: 1)
         close.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(close)
 
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 26),
-            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -30),
-            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 40),
-            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -40),
+            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -28),
+            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 44),
+            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -44),
             close.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
             close.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12),
             close.widthAnchor.constraint(equalToConstant: 22),
             close.heightAnchor.constraint(equalToConstant: 22),
-            card.widthAnchor.constraint(greaterThanOrEqualToConstant: 360),
+            card.widthAnchor.constraint(greaterThanOrEqualToConstant: 320),
         ])
         card.layoutSubtreeIfNeeded()
         let size = card.fittingSize
@@ -138,55 +144,36 @@ final class AirPodsPopup {
         DispatchQueue.main.asyncAfter(deadline: .now() + 8, execute: work)
     }
 
-    private func deviceColumn(image symbol: String, level: Int?, charging: Bool) -> NSView {
-        let art = NSImageView(image: resolvedSymbol(symbol))
-        art.symbolConfiguration = .init(pointSize: 60, weight: .regular)
-        art.contentTintColor = NSColor(white: 0.15, alpha: 1)
-        art.translatesAutoresizingMaskIntoConstraints = false
-        art.heightAnchor.constraint(equalToConstant: 96).isActive = true
-
-        let views: [NSView]
-        if let level {
-            let pill = BatteryPillView(percent: level, charging: charging)
-            let value = label("\(level)%", size: 16, weight: .semibold, color: .black)
-            value.alignment = .center
-            views = [art, pill, value]
-        } else {
-            views = [art]
-        }
-        let col = NSStackView(views: views)
-        col.orientation = .vertical
-        col.spacing = 8
-        col.alignment = .centerX
-        col.setCustomSpacing(14, after: art)
-        return col
+    /// One battery reading: caption, green pill, percentage.
+    private func batteryCell(_ caption: String, _ level: Int, charging: Bool) -> NSView {
+        let cap = label(caption, size: 12, weight: .regular, color: NSColor(white: 0.55, alpha: 1))
+        let pill = BatteryPillView(percent: level, charging: charging)
+        let value = label("\(level)%", size: 16, weight: .semibold, color: .black)
+        let cell = NSStackView(views: [cap, pill, value])
+        cell.orientation = .vertical
+        cell.spacing = 5
+        cell.alignment = .centerX
+        return cell
     }
 
-    // MARK: - Device → SF Symbol mapping
+    // MARK: - Device → image
 
-    private func budsSymbol(for name: String) -> String {
+    /// The bundled product image for the model, or an SF Symbol fallback.
+    private func deviceImage(for name: String) -> NSImage {
         let n = name.lowercased()
-        if n.contains("max") { return "airpodsmax" }
-        if n.contains("pro") { return "airpodspro" }
-        if n.contains("3") || n.contains("gen 3") || n.contains("(3") { return "airpods.gen3" }
-        return "airpods"
-    }
+        let asset: String
+        if n.contains("max") { asset = "airpods-max" }
+        else if n.contains("pro") { asset = (n.contains("3") ? "airpods-pro3" : "airpods-pro") }
+        else if n.contains("4") { asset = "airpods-4" }
+        else if n.contains("3") { asset = "airpods-3" }
+        else { asset = "airpods" }
 
-    private func caseSymbol(for name: String) -> String? {
-        let n = name.lowercased()
-        if n.contains("max") { return nil }   // Max has no charging case
-        if n.contains("pro") { return "airpodspro.chargingcase.wireless" }
-        if n.contains("3") || n.contains("(3") { return "airpods.gen3.chargingcase.wireless" }
-        return "airpods.chargingcase.wireless"
-    }
-
-    /// Returns the symbol if it exists on this OS, else a generic AirPods glyph.
-    private func resolvedSymbol(_ name: String) -> NSImage {
-        if let img = NSImage(systemSymbolName: name, accessibilityDescription: nil) { return img }
-        for fallback in ["airpods.chargingcase.wireless", "airpods"] {
-            if let img = NSImage(systemSymbolName: fallback, accessibilityDescription: nil) { return img }
+        if let url = Bundle.main.url(forResource: asset, withExtension: "png", subdirectory: "AirPodsArt"),
+           let image = NSImage(contentsOf: url) {
+            return image
         }
-        return NSImage()
+        // Fallback for a model we have no art for (or a non-bundled dev run).
+        return NSImage(systemSymbolName: "airpods", accessibilityDescription: nil) ?? NSImage()
     }
 
     // MARK: - Helpers
@@ -195,6 +182,7 @@ final class AirPodsPopup {
         let l = NSTextField(labelWithString: text)
         l.font = .systemFont(ofSize: size, weight: weight)
         l.textColor = color
+        l.alignment = .center
         return l
     }
 

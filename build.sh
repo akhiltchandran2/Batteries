@@ -32,6 +32,7 @@ sed -e "s/__APP_VERSION__/$VERSION/g" -e "s/__APP_BUILD__/$BUILD/g" \
     "Resources/Info-QStore.plist" > "$APP/Contents/Info.plist"
 
 cp "Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+cp -R "Resources/AirPodsArt" "$APP/Contents/Resources/AirPodsArt"
 
 # Locate the Sparkle.framework SwiftPM fetched and built against — this is
 # the one already on the linker's rpath-relative search, so it's the one
