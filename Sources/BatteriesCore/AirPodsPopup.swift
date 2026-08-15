@@ -273,8 +273,20 @@ private final class RippleView: NSView {
     private func startRipples() {
         wantsLayer = true
         layer?.masksToBounds = false
-        let ringCount = 3
         let dim = min(bounds.width, bounds.height)
+
+        // A steady ring that's always visible, so there's a clear circle even
+        // between ripple pulses.
+        let base = CALayer()
+        let baseDim = dim * 0.82
+        base.frame = CGRect(x: (bounds.width - baseDim) / 2, y: (bounds.height - baseDim) / 2,
+                            width: baseDim, height: baseDim)
+        base.cornerRadius = baseDim / 2
+        base.borderWidth = 1.5
+        base.borderColor = NSColor(white: 0.55, alpha: 0.28).cgColor
+        layer?.addSublayer(base)
+
+        let ringCount = 3
         for i in 0..<ringCount {
             let ring = CALayer()
             ring.frame = CGRect(x: (bounds.width - dim) / 2, y: (bounds.height - dim) / 2,
