@@ -66,14 +66,32 @@ final class AirPodsPopup {
                              size: 13, weight: .regular, color: NSColor(white: 0.6, alpha: 1))
         subtitle.alignment = .center
 
-        // One combined buds+case product image for the model, sized to a fixed
-        // height with the aspect ratio preserved.
+        // One combined buds+case product image for the model, over a soft
+        // animated ripple that gives the card a "live" feel. The image's
+        // transparent background lets the rings show through around it.
         let art = NSImageView(image: deviceImage(model: battery.model, name: name))
         art.imageScaling = .scaleProportionallyUpOrDown
         art.translatesAutoresizingMaskIntoConstraints = false
-        let imageHeight: CGFloat = 132
-        art.heightAnchor.constraint(equalToConstant: imageHeight).isActive = true
-        art.widthAnchor.constraint(lessThanOrEqualToConstant: 220).isActive = true
+
+        let ripple = RippleView()
+        ripple.translatesAutoresizingMaskIntoConstraints = false
+
+        let artContainer = NSView()
+        artContainer.translatesAutoresizingMaskIntoConstraints = false
+        artContainer.addSubview(ripple)
+        artContainer.addSubview(art)
+        NSLayoutConstraint.activate([
+            artContainer.heightAnchor.constraint(equalToConstant: 150),
+            artContainer.widthAnchor.constraint(equalToConstant: 220),
+            ripple.centerXAnchor.constraint(equalTo: artContainer.centerXAnchor),
+            ripple.centerYAnchor.constraint(equalTo: artContainer.centerYAnchor),
+            ripple.widthAnchor.constraint(equalToConstant: 200),
+            ripple.heightAnchor.constraint(equalToConstant: 150),
+            art.centerXAnchor.constraint(equalTo: artContainer.centerXAnchor),
+            art.centerYAnchor.constraint(equalTo: artContainer.centerYAnchor),
+            art.heightAnchor.constraint(equalToConstant: 132),
+            art.widthAnchor.constraint(lessThanOrEqualToConstant: 200),
+        ])
 
         // Both batteries below, side by side: earbuds and case.
         var cells: [NSView] = []
@@ -89,20 +107,21 @@ final class AirPodsPopup {
         batteries.spacing = 44
         batteries.alignment = .centerY
 
-        let stack = NSStackView(views: [title, subtitle, art, batteries])
+        let stack = NSStackView(views: [title, subtitle, artContainer, batteries])
         stack.orientation = .vertical
         stack.spacing = 6
         stack.alignment = .centerX
-        stack.setCustomSpacing(16, after: subtitle)
-        stack.setCustomSpacing(18, after: art)
+        stack.setCustomSpacing(12, after: subtitle)
+        stack.setCustomSpacing(14, after: artContainer)
         stack.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(stack)
 
-        let close = NSButton(image: NSImage(systemSymbolName: "xmark.circle.fill",
-                                            accessibilityDescription: "Close") ?? NSImage(),
-                             target: self, action: #selector(closeTapped))
+        let closeImage = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close")?
+            .withSymbolConfiguration(.init(pointSize: 24, weight: .regular))
+        let close = NSButton(image: closeImage ?? NSImage(), target: self, action: #selector(closeTapped))
         close.isBordered = false
-        close.contentTintColor = NSColor(white: 0.78, alpha: 1)
+        close.imageScaling = .scaleProportionallyUpOrDown
+        close.contentTintColor = NSColor(white: 0.75, alpha: 1)
         close.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(close)
 
@@ -111,10 +130,10 @@ final class AirPodsPopup {
             stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -28),
             stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 44),
             stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -44),
-            close.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
-            close.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12),
-            close.widthAnchor.constraint(equalToConstant: 22),
-            close.heightAnchor.constraint(equalToConstant: 22),
+            close.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
+            close.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+            close.widthAnchor.constraint(equalToConstant: 28),
+            close.heightAnchor.constraint(equalToConstant: 28),
             card.widthAnchor.constraint(greaterThanOrEqualToConstant: 320),
         ])
         card.layoutSubtreeIfNeeded()
@@ -130,13 +149,21 @@ final class AirPodsPopup {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.contentView = card
 
+        var finalOrigin = NSPoint.zero
         if let screen = NSScreen.main {
             let f = screen.frame
-            panel.setFrameOrigin(NSPoint(x: f.midX - size.width / 2, y: f.midY - size.height / 2))
+            finalOrigin = NSPoint(x: f.midX - size.width / 2, y: f.midY - size.height / 2)
         }
+        // Start slightly higher and settle down into place while fading in.
+        panel.setFrameOrigin(NSPoint(x: finalOrigin.x, y: finalOrigin.y + 26))
         panel.alphaValue = 0
         panel.orderFrontRegardless()
-        NSAnimationContext.runAnimationGroup { $0.duration = 0.2; panel.animator().alphaValue = 1 }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.3
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 1
+            panel.animator().setFrameOrigin(finalOrigin)
+        }
         self.panel = panel
 
         let work = DispatchWorkItem { [weak self] in self?.dismiss() }
@@ -229,4 +256,48 @@ final class AirPodsPopup {
 private final class ClickView: NSView {
     var onClick: (() -> Void)?
     override func mouseDown(with event: NSEvent) { onClick?() }
+}
+
+/// Soft concentric rings that gently expand and fade behind the AirPods image,
+/// giving the card a subtle "live" pulse. Purely decorative.
+private final class RippleView: NSView {
+    private var started = false
+
+    override func layout() {
+        super.layout()
+        guard !started, window != nil, bounds.width > 0 else { return }
+        started = true
+        startRipples()
+    }
+
+    private func startRipples() {
+        wantsLayer = true
+        layer?.masksToBounds = false
+        let ringCount = 3
+        let dim = min(bounds.width, bounds.height)
+        for i in 0..<ringCount {
+            let ring = CALayer()
+            ring.frame = CGRect(x: (bounds.width - dim) / 2, y: (bounds.height - dim) / 2,
+                                width: dim, height: dim)
+            ring.cornerRadius = dim / 2
+            ring.borderWidth = 1.5
+            ring.borderColor = NSColor(white: 0.55, alpha: 1).cgColor
+            ring.opacity = 0
+            layer?.addSublayer(ring)
+
+            let scale = CABasicAnimation(keyPath: "transform.scale")
+            scale.fromValue = 0.4
+            scale.toValue = 1.0
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 0.18
+            fade.toValue = 0.0
+            let group = CAAnimationGroup()
+            group.animations = [scale, fade]
+            group.duration = 3.0
+            group.beginTime = CACurrentMediaTime() + Double(i)   // stagger by 1s
+            group.repeatCount = .infinity
+            group.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            ring.add(group, forKey: "ripple")
+        }
+    }
 }
