@@ -161,7 +161,13 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         // Low Power Mode availability appearing/disappearing, or the energy
         // app list changing, are structural — defer to a full rebuild.
         guard (lowPowerItem != nil) == (store.lowPowerEnabled != nil) else { return false }
-        guard store.energyApps.map(\.name) == renderedEnergyNames else { return false }
+        // Rebuild if the energy list or any app's paused state changed.
+        let suspendedPaths = EnergyControl.suspendedPaths()
+        var currentEnergy = store.energyApps.map { "\($0.appPath)|\(suspendedPaths.contains($0.appPath))" }
+        for path in suspendedPaths where !store.energyApps.contains(where: { $0.appPath == path }) {
+            currentEnergy.append("\(path)|true")
+        }
+        guard currentEnergy == renderedEnergyNames else { return false }
 
         let devices = store.devices
         guard devices.map(\.id) == lastDeviceOrder else { return false }
@@ -292,18 +298,50 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // ── Apps using significant energy ────────────────────────────
-        if !store.energyApps.isEmpty {
+        // Paused apps use ~zero CPU so they fall off the energy scan; keep
+        // showing them (so they can be resumed) by merging them back in.
+        var energyRows: [(name: String, path: String, paused: Bool)] =
+            store.energyApps.map { ($0.name, $0.appPath, EnergyControl.isSuspended(appPath: $0.appPath)) }
+        let listedPaths = Set(store.energyApps.map(\.appPath))
+        for path in EnergyControl.suspendedPaths() where !listedPaths.contains(path) {
+            let name = (path as NSString).lastPathComponent.replacingOccurrences(of: ".app", with: "")
+            energyRows.append((name, path, true))
+        }
+
+        if !energyRows.isEmpty {
             addInfo("Apps Using Significant Energy")
-            for app in store.energyApps {
-                let item = NSMenuItem(title: app.name,
-                                      action: #selector(activateEnergyApp(_:)), keyEquivalent: "")
-                item.target = self
-                item.representedObject = app.appPath
-                item.image = Self.appIcon(path: app.appPath)
-                item.toolTip = "Bring \(app.name) to the front"
+            for row in energyRows {
+                let item = NSMenuItem(title: row.paused ? "\(row.name) — Paused" : row.name,
+                                      action: nil, keyEquivalent: "")
+                item.image = Self.appIcon(path: row.path)
+
+                let sub = NSMenu()
+                if row.paused {
+                    let resume = NSMenuItem(title: "Resume Now",
+                                            action: #selector(resumeEnergyApp(_:)), keyEquivalent: "")
+                    resume.target = self
+                    resume.representedObject = row.path
+                    resume.toolTip = "Unfreeze \(row.name) now"
+                    sub.addItem(resume)
+                } else {
+                    let front = NSMenuItem(title: "Bring to Front",
+                                           action: #selector(activateEnergyApp(_:)), keyEquivalent: "")
+                    front.target = self
+                    front.representedObject = row.path
+                    sub.addItem(front)
+
+                    let pause = NSMenuItem(title: "Pause Until Plugged In",
+                                           action: #selector(pauseEnergyApp(_:)), keyEquivalent: "")
+                    pause.target = self
+                    pause.representedObject = row.path
+                    pause.toolTip = "Freeze \(row.name) so it stops draining the battery, "
+                                  + "until the Mac is next on power (it will be unresponsive while paused)"
+                    sub.addItem(pause)
+                }
+                item.submenu = sub
                 menu.addItem(item)
             }
-            renderedEnergyNames = store.energyApps.map(\.name)
+            renderedEnergyNames = energyRows.map { "\($0.path)|\($0.paused)" }
             menu.addItem(.separator())
         }
 
@@ -563,6 +601,25 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func activateEnergyApp(_ sender: NSMenuItem) {
         guard let path = sender.representedObject as? String else { return }
         NSWorkspace.shared.open(URL(fileURLWithPath: path))
+    }
+
+    @objc private func pauseEnergyApp(_ sender: NSMenuItem) {
+        guard let path = sender.representedObject as? String else { return }
+        // kill(2) blocks only briefly, but process enumeration can take a
+        // moment — do it off the main thread, then rebuild so the row flips
+        // to "Paused" / "Resume Now".
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            EnergyControl.suspend(appPath: path)
+            DispatchQueue.main.async { self?.refreshUI() }
+        }
+    }
+
+    @objc private func resumeEnergyApp(_ sender: NSMenuItem) {
+        guard let path = sender.representedObject as? String else { return }
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            EnergyControl.resume(appPath: path)
+            DispatchQueue.main.async { self?.refreshUI() }
+        }
     }
 
     @objc private func toggleBluetoothDevice(_ sender: NSMenuItem) {

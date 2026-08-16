@@ -30,6 +30,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     public func applicationDidFinishLaunching(_ notification: Notification) {
         NotificationManager.shared.requestAuthorization()
 
+        // If a previous run crashed while apps were paused, thaw them now so
+        // nothing is left frozen.
+        EnergyControl.recoverOnLaunch()
+
         let controller = StatusItemController(store: store)
         statusController = controller
         store.onUpdate = { [weak self, weak controller] in
@@ -72,7 +76,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if let source = IOPSNotificationCreateRunLoopSource({ ctx in
             guard let ctx else { return }
             let me = Unmanaged<AppDelegate>.fromOpaque(ctx).takeUnretainedValue()
-            DispatchQueue.main.async { me.scheduleRefresh(reason: "power-source-change") }
+            DispatchQueue.main.async {
+                me.scheduleRefresh(reason: "power-source-change")
+                // Back on wall power → thaw any apps paused "until plugged in".
+                if me.powerIsAC() {
+                    EnergyControl.resumeAll()
+                    me.statusController?.refreshUI()
+                }
+            }
         }, context)?.takeRetainedValue() {
             CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
             powerSourceSource = source
@@ -86,6 +97,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         AirPodsMonitor.shared.setEnabled(Preferences.airPodsScanningEnabled)
 
         onLaunch?(controller)
+    }
+
+    /// Never leave a paused app frozen when PowerDeck quits.
+    public func applicationWillTerminate(_ notification: Notification) {
+        EnergyControl.resumeAll()
+    }
+
+    /// True when the Mac is currently running on wall power.
+    private func powerIsAC() -> Bool {
+        let info = IOPSCopyPowerSourcesInfo().takeRetainedValue()
+        let type = IOPSGetProvidingPowerSourceType(info).takeRetainedValue() as String
+        return type == kIOPSACPowerValue
     }
 
     @objc private func didWake() {
