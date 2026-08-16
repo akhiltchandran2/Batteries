@@ -29,18 +29,12 @@ enum BatteryIcon {
             NSBezierPath(roundedRect: NSRect(x: 23.2, y: 4.6, width: 2.2, height: 3.8),
                          xRadius: 1.1, yRadius: 1.1).fill()
 
-            // Proportional charge fill. While charging, extend the fill to
-            // sit behind the whole bolt so the bolt (punched out below) always
-            // has solid material to cut into — otherwise at low charge there's
-            // nothing to erase and the bolt vanishes. This means the fill reads
-            // fuller than the true level while charging; that's the deliberate
-            // trade for a legible, theme-adapting bolt on a monochrome
-            // template icon (the exact % is always in the dropdown).
+            // Proportional charge fill — always the true level, whether or not
+            // it's charging (the exact % is also in the dropdown).
             let inner = body.insetBy(dx: 1.7, dy: 1.7)
             let boltRect = NSRect(x: 6.6, y: 1.4, width: 9.0, height: 10.2)
             let level = max(0.0, min(1.0, Double(percent ?? 0) / 100.0))
-            var fillWidth = inner.width * CGFloat(level)
-            if showBolt { fillWidth = max(fillWidth, boltRect.maxX + 0.6 - inner.minX) }
+            let fillWidth = inner.width * CGFloat(level)
             if fillWidth > 0 {
                 fillColor.setFill()
                 NSBezierPath(roundedRect: NSRect(x: inner.minX, y: inner.minY,
@@ -48,14 +42,19 @@ enum BatteryIcon {
                              xRadius: 1.8, yRadius: 1.8).fill()
             }
 
-            // Charging bolt: a genuine punched-through hole, like the system
-            // icon — the menu bar shows through it, which reads cleanly on
-            // both light and dark bars.
+            // Charging bolt: punch a hole through the fill (system look over the
+            // filled part) AND stroke the bolt outline in the fill colour, so
+            // the bolt still reads over the *empty* part at low charge —
+            // without inflating the fill to look fuller than the true level.
             if showBolt {
+                let bolt = boltPath(in: boltRect)
                 ctx.saveGState()
                 ctx.setBlendMode(.destinationOut)
-                boltPath(in: boltRect).fill()
+                bolt.fill()
                 ctx.restoreGState()
+                fillColor.setStroke()
+                bolt.lineWidth = 1.0
+                bolt.stroke()
             }
             return true
         }

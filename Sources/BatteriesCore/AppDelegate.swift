@@ -1,5 +1,6 @@
 import AppKit
 import Network
+import IOKit.ps
 
 public final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = BatteryStore()
@@ -8,6 +9,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pathMonitor: NWPathMonitor?
     private var pendingRefresh: DispatchWorkItem?
     private var lastPathStatus: NWPath.Status?
+    private var powerSourceSource: CFRunLoopSource?
     private let airPodsPopup = AirPodsPopup()
 
     /// A battery monitor that itself drains the battery defeats the point.
@@ -60,6 +62,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(didWake),
             name: NSWorkspace.didWakeNotification, object: nil)
+
+        // Rescan the instant the power source changes (charger plugged in or
+        // unplugged), so the icon's charging bolt and level update right away
+        // instead of waiting for the next timer tick (up to 5 min on battery).
+        // IOPS also fires on battery-% changes; scheduleRefresh is debounced
+        // and store.refresh is throttled, so that can't cause a scan storm.
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        if let source = IOPSNotificationCreateRunLoopSource({ ctx in
+            guard let ctx else { return }
+            let me = Unmanaged<AppDelegate>.fromOpaque(ctx).takeUnretainedValue()
+            DispatchQueue.main.async { me.scheduleRefresh(reason: "power-source-change") }
+        }, context)?.takeRetainedValue() {
+            CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
+            powerSourceSource = source
+        }
 
         // AirPods case-open pop-up (opt-in). The monitor only scans while
         // enabled; showing the card and connecting happen on the main thread.
