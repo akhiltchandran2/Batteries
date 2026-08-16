@@ -137,7 +137,27 @@ final class AirPodsPopup {
             card.widthAnchor.constraint(greaterThanOrEqualToConstant: 320),
         ])
         card.layoutSubtreeIfNeeded()
-        let size = card.fittingSize
+        let cardSize = card.fittingSize
+
+        // Draw our own soft drop shadow instead of the panel's system window
+        // shadow — the latter renders a hard 1px rim right at the card edge.
+        // The card sits inside a transparent, padded container so the soft
+        // shadow has room to render without being clipped.
+        let margin: CGFloat = 24
+        let size = NSSize(width: cardSize.width + margin * 2, height: cardSize.height + margin * 2)
+
+        card.translatesAutoresizingMaskIntoConstraints = true
+        card.frame = NSRect(x: margin, y: margin, width: cardSize.width, height: cardSize.height)
+        card.layer?.masksToBounds = false
+        card.layer?.shadowColor = NSColor.black.cgColor
+        card.layer?.shadowOpacity = 0.18
+        card.layer?.shadowRadius = 16
+        card.layer?.shadowOffset = CGSize(width: 0, height: -6)
+        card.layer?.shadowPath = CGPath(roundedRect: NSRect(origin: .zero, size: cardSize),
+                                        cornerWidth: 18, cornerHeight: 18, transform: nil)
+
+        let container = NSView(frame: NSRect(origin: .zero, size: size))
+        container.addSubview(card)
 
         let panel = NSPanel(contentRect: NSRect(origin: .zero, size: size),
                             styleMask: [.borderless, .nonactivatingPanel],
@@ -147,7 +167,7 @@ final class AirPodsPopup {
         panel.hasShadow = false
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.contentView = card
+        panel.contentView = container
 
         var finalOrigin = NSPoint.zero
         if let screen = NSScreen.main {
