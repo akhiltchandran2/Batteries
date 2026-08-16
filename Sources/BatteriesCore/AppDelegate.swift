@@ -66,7 +66,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         AirPodsMonitor.shared.onCaseOpen = { [weak self] reading in
             self?.airPodsPopup.show(name: reading.name, battery: reading.battery)
         }
-        AirPodsMonitor.shared.setEnabled(Preferences.airPodsPopupEnabled)
+        AirPodsMonitor.shared.setEnabled(Preferences.airPodsScanningEnabled)
 
         onLaunch?(controller)
     }

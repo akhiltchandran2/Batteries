@@ -1,7 +1,7 @@
 import Foundation
 import UserNotifications
 
-final class NotificationManager {
+final class NotificationManager: NSObject {
     static let shared = NotificationManager()
 
     /// UNUserNotificationCenter crashes in unbundled executables (`swift run`),
@@ -19,10 +19,30 @@ final class NotificationManager {
     /// Bluetooth accessories often sit at 100% in their case for hours.
     private static let fullAlertKinds: Set<DeviceBattery.Kind> = [.mac, .iphone, .ipad]
 
+    private static let lowBatteryCategory = "LOW_BATTERY"
+    private static let fullChargeCategory = "FULL_CHARGE"
+    private static let snoozeAction = "SNOOZE_1H"
+    private static let muteAction = "MUTE_DEVICE"
+
     func requestAuthorization() {
         guard available else { return }
+        UNUserNotificationCenter.current().delegate = self
+        registerCategories()
         UNUserNotificationCenter.current()
             .requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    /// Lets a low-battery/full-charge notification carry a "Snooze 1h" /
+    /// "Mute this device" action, instead of doing nothing when clicked.
+    private func registerCategories() {
+        let snooze = UNNotificationAction(identifier: Self.snoozeAction, title: "Snooze 1h", options: [])
+        let mute = UNNotificationAction(identifier: Self.muteAction, title: "Mute This Device",
+                                        options: [.destructive])
+        let low = UNNotificationCategory(identifier: Self.lowBatteryCategory,
+                                         actions: [snooze, mute], intentIdentifiers: [], options: [])
+        let full = UNNotificationCategory(identifier: Self.fullChargeCategory,
+                                          actions: [mute], intentIdentifiers: [], options: [])
+        UNUserNotificationCenter.current().setNotificationCategories([low, full])
     }
 
     private var primed = false
@@ -52,11 +72,17 @@ final class NotificationManager {
             // ── Low battery ──────────────────────────────────────────
             if Preferences.notificationsEnabled {
                 if percent <= threshold && !device.isCharging {
-                    if !lowNotified.contains(device.id) {
+                    // Snoozed devices are deliberately left out of lowNotified
+                    // too, so the alert fires again once the snooze expires
+                    // (rather than staying suppressed for the rest of the
+                    // discharge cycle).
+                    if !lowNotified.contains(device.id) && !Preferences.isSnoozed(deviceID: device.id) {
                         lowNotified.insert(device.id)
                         send(id: "low-\(device.id)",
                              title: "\(device.name) is running low",
-                             body: "Battery is at \(percent)%. Time to recharge.")
+                             body: "Battery is at \(percent)%. Time to recharge.",
+                             category: Self.lowBatteryCategory,
+                             deviceID: device.id)
                     }
                 } else if device.isCharging || percent > threshold + 10 {
                     lowNotified.remove(device.id)
@@ -71,7 +97,9 @@ final class NotificationManager {
                         fullNotified.insert(device.id)
                         send(id: "full-\(device.id)",
                              title: "\(device.name) is fully charged",
-                             body: "Battery is at 100%. You can unplug it now.")
+                             body: "Battery is at 100%. You can unplug it now.",
+                             category: Self.fullChargeCategory,
+                             deviceID: device.id)
                     }
                 } else if percent < 95 {
                     fullNotified.remove(device.id)
@@ -101,12 +129,42 @@ final class NotificationManager {
         energyNotified.formIntersection(stillElevated.union(hot))
     }
 
-    private func send(id: String, title: String, body: String) {
+    private func send(id: String, title: String, body: String, category: String? = nil, deviceID: String? = nil) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
+        if let category { content.categoryIdentifier = category }
+        if let deviceID { content.userInfo = ["deviceID": deviceID] }
         UNUserNotificationCenter.current().add(
             UNNotificationRequest(identifier: id, content: content, trigger: nil))
+    }
+}
+
+extension NotificationManager: UNUserNotificationCenterDelegate {
+    /// Without this, a notification silently does nothing while the app is
+    /// in the foreground — show it as a banner regardless.
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        defer { completionHandler() }
+        guard let deviceID = response.notification.request.content.userInfo["deviceID"] as? String else { return }
+        switch response.actionIdentifier {
+        case Self.snoozeAction:
+            Preferences.snooze(deviceID: deviceID, for: 3600)
+            lowNotified.remove(deviceID)
+        case Self.muteAction:
+            Preferences.mute(deviceID: deviceID)
+            lowNotified.remove(deviceID)
+            fullNotified.remove(deviceID)
+        default:
+            break
+        }
     }
 }

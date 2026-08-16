@@ -57,6 +57,8 @@ final class AirPodsPopup {
         card.wantsLayer = true
         card.layer?.backgroundColor = NSColor.white.cgColor
         card.layer?.cornerRadius = 18
+        card.layer?.borderWidth = 1
+        card.layer?.borderColor = NSColor(red: 0xE3 / 255, green: 0xD3 / 255, blue: 0xD3 / 255, alpha: 1).cgColor
         card.translatesAutoresizingMaskIntoConstraints = false
         card.onClick = { [weak self] in self?.cardClicked(connected: connected) }
 

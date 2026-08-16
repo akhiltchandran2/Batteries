@@ -46,6 +46,20 @@ enum Preferences {
         set { defaults.set(newValue, forKey: "airPodsPopupEnabled") }
     }
 
+    /// Show live AirPods battery in the menu (not just the case-open card),
+    /// even before they're fully Bluetooth-connected. Also always-on
+    /// scanning, so also opt-in and off by default.
+    static var airPodsMenuBatteryEnabled: Bool {
+        get { defaults.object(forKey: "airPodsMenuBatteryEnabled") as? Bool ?? false }
+        set { defaults.set(newValue, forKey: "airPodsMenuBatteryEnabled") }
+    }
+
+    /// Either AirPods feature wanting live data means the proximity scanner
+    /// needs to be running.
+    static var airPodsScanningEnabled: Bool {
+        airPodsPopupEnabled || airPodsMenuBatteryEnabled
+    }
+
     // MARK: - Per-device notification muting
 
     static var mutedDeviceIDs: Set<String> {
@@ -57,6 +71,35 @@ enum Preferences {
         var muted = mutedDeviceIDs
         if muted.contains(deviceID) { muted.remove(deviceID) } else { muted.insert(deviceID) }
         mutedDeviceIDs = muted
+    }
+
+    /// Mutes a device outright (used by the notification's "Mute" action,
+    /// where there's nothing to toggle — it's only offered while unmuted).
+    static func mute(deviceID: String) {
+        var muted = mutedDeviceIDs
+        muted.insert(deviceID)
+        mutedDeviceIDs = muted
+    }
+
+    // MARK: - Low-battery snooze (from the notification's "Snooze 1h" action)
+
+    private static var snoozedUntil: [String: Date] {
+        get {
+            let raw = defaults.dictionary(forKey: "snoozedUntil") as? [String: Double] ?? [:]
+            return raw.mapValues { Date(timeIntervalSince1970: $0) }
+        }
+        set { defaults.set(newValue.mapValues { $0.timeIntervalSince1970 }, forKey: "snoozedUntil") }
+    }
+
+    static func snooze(deviceID: String, for interval: TimeInterval) {
+        var snoozed = snoozedUntil
+        snoozed[deviceID] = Date().addingTimeInterval(interval)
+        snoozedUntil = snoozed
+    }
+
+    static func isSnoozed(deviceID: String) -> Bool {
+        guard let until = snoozedUntil[deviceID] else { return false }
+        return until > Date()
     }
 
     /// Every device ever seen (id → name), so the notification toggles can

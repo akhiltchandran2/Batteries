@@ -437,6 +437,15 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
                         + "(uses always-on Bluetooth scanning)"
         prefsMenu.addItem(airpods)
 
+        let airpodsMenuBattery = NSMenuItem(title: "Show AirPods Battery in Menu",
+                                            action: #selector(toggleAirPodsMenuBattery), keyEquivalent: "")
+        airpodsMenuBattery.target = self
+        airpodsMenuBattery.state = Preferences.airPodsMenuBatteryEnabled ? .on : .off
+        airpodsMenuBattery.toolTip = "Keep AirPods battery visible in the menu the moment the case "
+                                   + "opens nearby, even before they're connected (uses always-on "
+                                   + "Bluetooth scanning)"
+        prefsMenu.addItem(airpodsMenuBattery)
+
         prefsMenu.addItem(.separator())
 
         if Bundle.main.bundleIdentifier != nil {
@@ -532,7 +541,12 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func toggleAirPodsPopup() {
         Preferences.airPodsPopupEnabled.toggle()
-        AirPodsMonitor.shared.setEnabled(Preferences.airPodsPopupEnabled)
+        AirPodsMonitor.shared.setEnabled(Preferences.airPodsScanningEnabled)
+    }
+
+    @objc private func toggleAirPodsMenuBattery() {
+        Preferences.airPodsMenuBatteryEnabled.toggle()
+        AirPodsMonitor.shared.setEnabled(Preferences.airPodsScanningEnabled)
     }
 
     @objc private func toggleLowPowerMode() {

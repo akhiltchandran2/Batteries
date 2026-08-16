@@ -3,7 +3,8 @@ import CoreBluetooth
 
 /// Scans for AirPods proximity broadcasts and fires when the case is opened
 /// near the Mac. Opt-in — always-on BLE scanning has a battery cost, so it only
-/// runs while enabled (the pop-up preference). Needs Bluetooth permission.
+/// runs while enabled (the pop-up and/or continuous-menu-battery preferences —
+/// see `Preferences.airPodsScanningEnabled`). Needs Bluetooth permission.
 public final class AirPodsMonitor: NSObject, CBCentralManagerDelegate {
     public static let shared = AirPodsMonitor()
 
@@ -38,6 +39,14 @@ public final class AirPodsMonitor: NSObject, CBCentralManagerDelegate {
     public func battery(forName name: String) -> AirPodsBattery? {
         lock.lock(); defer { lock.unlock() }
         return latestByName[name]
+    }
+
+    /// Every AirPods device seen recently, by name — used to show battery in
+    /// the menu for a case that's open nearby but not yet Bluetooth-connected
+    /// (so wouldn't otherwise appear at all).
+    public func allCached() -> [String: AirPodsBattery] {
+        lock.lock(); defer { lock.unlock() }
+        return latestByName
     }
 
     public func setEnabled(_ enabled: Bool) {

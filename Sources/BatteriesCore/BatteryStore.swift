@@ -72,6 +72,30 @@ final class BatteryStore {
             }
 
             var devices = ios + bluetooth
+
+            // AirPods whose case is open nearby but that aren't (yet) a
+            // Bluetooth connection at all don't appear in `bluetooth` above,
+            // so system_profiler never gets a chance to report them. Add a
+            // row straight from the proximity broadcast so the menu shows
+            // live battery the moment the case opens, not just once paired.
+            if Preferences.airPodsMenuBatteryEnabled {
+                let existingNames = Set(devices.map { $0.name.lowercased() })
+                for (name, ap) in AirPodsMonitor.shared.allCached() where !existingNames.contains(name.lowercased()) {
+                    var components: [DeviceBattery.Component] = []
+                    if let left = ap.left { components.append(.init(label: "Left", percent: left)) }
+                    if let right = ap.right { components.append(.init(label: "Right", percent: right)) }
+                    if let caseLevel = ap.caseLevel { components.append(.init(label: "Case", percent: caseLevel)) }
+                    devices.append(DeviceBattery(
+                        id: "airpods-proximity-\(name)",
+                        name: name,
+                        kind: .headphones,
+                        percent: ap.minPod,
+                        isCharging: ap.leftCharging || ap.rightCharging,
+                        components: components
+                    ))
+                }
+            }
+
             // Fold in accessories that were seen before but are missing from
             // this scan, marked unreachable rather than silently dropped.
             devices = DeviceRegistry.reconcile(current: devices)
