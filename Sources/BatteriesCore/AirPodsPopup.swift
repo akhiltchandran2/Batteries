@@ -118,10 +118,10 @@ final class AirPodsPopup {
 
         let closeImage = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close")?
             .withSymbolConfiguration(.init(pointSize: 24, weight: .regular))
-        let close = NSButton(image: closeImage ?? NSImage(), target: self, action: #selector(closeTapped))
+        let close = HoverButton(image: closeImage ?? NSImage(), target: self, action: #selector(closeTapped))
         close.isBordered = false
         close.imageScaling = .scaleProportionallyUpOrDown
-        close.contentTintColor = NSColor(white: 0.75, alpha: 1)
+        close.contentTintColor = close.normalTint
         close.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(close)
 
@@ -276,6 +276,34 @@ final class AirPodsPopup {
 private final class ClickView: NSView {
     var onClick: (() -> Void)?
     override func mouseDown(with event: NSEvent) { onClick?() }
+}
+
+/// A borderless image button that darkens on hover and shows a pointing-hand
+/// cursor, so the close button feels responsive.
+private final class HoverButton: NSButton {
+    let normalTint = NSColor(white: 0.75, alpha: 1)
+    let hoverTint = NSColor(white: 0.45, alpha: 1)
+    private var tracking: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let tracking { removeTrackingArea(tracking) }
+        let area = NSTrackingArea(rect: bounds,
+                                  options: [.mouseEnteredAndExited, .activeAlways],
+                                  owner: self, userInfo: nil)
+        addTrackingArea(area)
+        tracking = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        NSAnimationContext.runAnimationGroup { $0.duration = 0.12; animator().contentTintColor = hoverTint }
+        NSCursor.pointingHand.set()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        NSAnimationContext.runAnimationGroup { $0.duration = 0.12; animator().contentTintColor = normalTint }
+        NSCursor.arrow.set()
+    }
 }
 
 /// Soft concentric rings that gently expand and fade behind the AirPods image,
