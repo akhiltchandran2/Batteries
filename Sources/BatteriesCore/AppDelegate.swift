@@ -92,6 +92,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // AirPods case-open pop-up (opt-in). The monitor only scans while
         // enabled; showing the card and connecting happen on the main thread.
         AirPodsMonitor.shared.onCaseOpen = { [weak self] reading in
+            // The pop-up is a quick-connect prompt. If these AirPods are
+            // already connected to this Mac, don't show it — AirPods keep
+            // broadcasting proximity messages while connected, which would
+            // otherwise re-show the card at random times.
+            guard !BluetoothControl.isConnected(name: reading.name) else { return }
             self?.airPodsPopup.show(name: reading.name, battery: reading.battery)
         }
         AirPodsMonitor.shared.setEnabled(Preferences.airPodsScanningEnabled)

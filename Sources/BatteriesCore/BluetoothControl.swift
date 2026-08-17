@@ -31,6 +31,17 @@ enum BluetoothControl {
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    /// Whether a paired device with this name is currently connected. Used to
+    /// suppress the AirPods pop-up when the AirPods are already connected (they
+    /// keep broadcasting proximity messages, which would otherwise re-show the
+    /// "click to connect" card at random).
+    static func isConnected(name: String) -> Bool {
+        guard let devices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] else {
+            return false
+        }
+        return devices.contains { $0.name == name && $0.isConnected() }
+    }
+
     /// Connects a paired device found by name (used by the AirPods pop-up,
     /// which only knows the broadcast name, not the address). No-op if already
     /// connected or not found.
