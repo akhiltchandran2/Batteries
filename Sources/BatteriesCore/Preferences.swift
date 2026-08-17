@@ -38,19 +38,19 @@ enum Preferences {
         set { defaults.set(newValue, forKey: "notifyEnergyApps") }
     }
 
-    /// Show the AirPods pop-up card when the case opens nearby. Off by
-    /// default — it needs always-on Bluetooth scanning, which has a battery
-    /// cost, so it's the user's choice to turn on.
+    /// Show the AirPods pop-up card when the case opens nearby. On by default
+    /// so it works out of the box; it can be turned off in App Settings (it
+    /// uses always-on Bluetooth scanning, which has a small battery cost).
     static var airPodsPopupEnabled: Bool {
-        get { defaults.object(forKey: "airPodsPopupEnabled") as? Bool ?? false }
+        get { defaults.object(forKey: "airPodsPopupEnabled") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "airPodsPopupEnabled") }
     }
 
     /// Show live AirPods battery in the menu (not just the case-open card),
-    /// even before they're fully Bluetooth-connected. Also always-on
-    /// scanning, so also opt-in and off by default.
+    /// even before they're fully Bluetooth-connected. On by default, sharing
+    /// the same scan as the pop-up; can be turned off in App Settings.
     static var airPodsMenuBatteryEnabled: Bool {
-        get { defaults.object(forKey: "airPodsMenuBatteryEnabled") as? Bool ?? false }
+        get { defaults.object(forKey: "airPodsMenuBatteryEnabled") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "airPodsMenuBatteryEnabled") }
     }
 

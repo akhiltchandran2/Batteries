@@ -1,7 +1,7 @@
 ## 1.4
 
-- AirPods pop-up: open your AirPods case next to the Mac and an iPhone-style card drops in showing the earbud and case battery — with the right product image for your model — plus a one-click Connect. Off by default; turn it on in App Settings → "AirPods Pop-up When Case Opens".
-- Show AirPods battery right in the menu, live, the moment the case opens nearby — even before they're connected. Optional; App Settings → "Show AirPods Battery in Menu".
+- AirPods pop-up: open your AirPods case next to the Mac and an iPhone-style card drops in showing the earbud and case battery — with the right product image for your model — plus a one-click Connect. On by default; grant Bluetooth when asked. You can turn it off in App Settings → "AirPods Pop-up When Case Opens".
+- Show AirPods battery right in the menu, live, the moment the case opens nearby — even before they're connected. On by default; App Settings → "Show AirPods Battery in Menu".
 - Battery percentage for Bluetooth accessories macOS doesn't otherwise report — mice, keyboards, and headphones with the standard Bluetooth battery service (e.g. an MX Master) now show their level instead of "—", read directly over Bluetooth.
 - Pause a battery-hungry app until you're back on power: each app under "Apps Using Significant Energy" now has a "Pause Until Plugged In" action that freezes it so it stops draining the battery, then automatically resumes it when you plug in.
 - Low-battery and full-charge notifications are now actionable — "Snooze 1h" and "Mute This Device" right from the notification.
