@@ -4,6 +4,7 @@
 - Show AirPods battery right in the menu, live, the moment the case opens nearby — even before they're connected. On by default; App Settings → "Show AirPods Battery in Menu".
 - Battery percentage for Bluetooth accessories macOS doesn't otherwise report — mice, keyboards, and headphones with the standard Bluetooth battery service (e.g. an MX Master) now show their level instead of "—", read directly over Bluetooth.
 - Pause a battery-hungry app until you're back on power: each app under "Apps Using Significant Energy" now has a "Pause Until Plugged In" action that freezes it so it stops draining the battery, then automatically resumes it when you plug in.
+- Silence energy notifications per app: each energy-intensive app has a "Notify About This App" toggle, so a pro tool you knowingly run hot won't keep nagging you while you still hear about unexpected new ones.
 - Low-battery and full-charge notifications are now actionable — "Snooze 1h" and "Mute This Device" right from the notification.
 - Menu bar icon fixes: the fill now always matches the true charge level (it previously looked full while charging), and plugging or unplugging the charger updates the icon instantly instead of after a delay.
 - Fresh app icon.
