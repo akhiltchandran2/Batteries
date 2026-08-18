@@ -38,6 +38,23 @@ enum Preferences {
         set { defaults.set(newValue, forKey: "notifyEnergyApps") }
     }
 
+    /// Apps (by .app path) the user has opted out of energy notifications for —
+    /// e.g. a pro app they knowingly run hot and don't want nagged about.
+    static var energyNotifyMutedApps: Set<String> {
+        get { Set(defaults.stringArray(forKey: "energyNotifyMutedApps") ?? []) }
+        set { defaults.set(Array(newValue), forKey: "energyNotifyMutedApps") }
+    }
+
+    static func isEnergyNotifyMuted(appPath: String) -> Bool {
+        energyNotifyMutedApps.contains(appPath)
+    }
+
+    static func toggleEnergyNotifyMuted(appPath: String) {
+        var muted = energyNotifyMutedApps
+        if muted.contains(appPath) { muted.remove(appPath) } else { muted.insert(appPath) }
+        energyNotifyMutedApps = muted
+    }
+
     /// Show the AirPods pop-up card when the case opens nearby. On by default
     /// so it works out of the box; it can be turned off in App Settings (it
     /// uses always-on Bluetooth scanning, which has a small battery cost).

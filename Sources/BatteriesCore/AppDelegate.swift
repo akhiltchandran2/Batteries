@@ -77,11 +77,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let ctx else { return }
             let me = Unmanaged<AppDelegate>.fromOpaque(ctx).takeUnretainedValue()
             DispatchQueue.main.async {
+                // Instant, throttle-exempt icon update (pure IOKit read) so the
+                // charging bolt appears the moment the charger is connected.
+                me.store.reloadMacBattery()
+                // Plus a full (throttled) device refresh for everything else.
                 me.scheduleRefresh(reason: "power-source-change")
                 // Back on wall power → thaw any apps paused "until plugged in".
                 if me.powerIsAC() {
                     EnergyControl.resumeAll()
-                    me.statusController?.refreshUI()
                 }
             }
         }, context)?.takeRetainedValue() {

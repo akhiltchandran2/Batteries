@@ -176,6 +176,21 @@ final class BatteryStore {
         }
     }
 
+    /// Re-reads only the Mac's battery/power state — pure IOKit, instant — and
+    /// notifies, so the menu bar icon flips to charging (or off) the moment the
+    /// charger is plugged or unplugged, without the full device scan or its
+    /// 15-second throttle.
+    func reloadMacBattery() {
+        queue.async { [weak self] in
+            let mac = MacBattery.read()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.mac = mac
+                self.onUpdate?()
+            }
+        }
+    }
+
     /// Re-reads only the Low Power Mode state (cheap) and notifies, so the
     /// menu's checkmark reflects a toggle right away instead of waiting for
     /// the next throttled full refresh.

@@ -337,6 +337,19 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
                     pause.toolTip = "Freeze \(row.name) so it stops draining the battery, "
                                   + "until the Mac is next on power (it will be unresponsive while paused)"
                     sub.addItem(pause)
+
+                    // Per-app control over the energy notification, so a hog you
+                    // knowingly run doesn't nag you. Only meaningful when energy
+                    // notifications are on at all.
+                    if Preferences.notifyEnergyApps {
+                        let notify = NSMenuItem(title: "Notify About This App",
+                                                action: #selector(toggleEnergyNotify(_:)), keyEquivalent: "")
+                        notify.target = self
+                        notify.representedObject = row.path
+                        notify.state = Preferences.isEnergyNotifyMuted(appPath: row.path) ? .off : .on
+                        notify.toolTip = "Turn off to stop energy notifications about \(row.name)"
+                        sub.addItem(notify)
+                    }
                 }
                 item.submenu = sub
                 menu.addItem(item)
@@ -620,6 +633,11 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
             EnergyControl.resume(appPath: path)
             DispatchQueue.main.async { self?.refreshUI() }
         }
+    }
+
+    @objc private func toggleEnergyNotify(_ sender: NSMenuItem) {
+        guard let path = sender.representedObject as? String else { return }
+        Preferences.toggleEnergyNotifyMuted(appPath: path)
     }
 
     @objc private func toggleBluetoothDevice(_ sender: NSMenuItem) {

@@ -116,6 +116,8 @@ final class NotificationManager: NSObject {
         let hot = Set(apps.filter { $0.impact >= EnergyMonitor.notifyThreshold }.map(\.name))
 
         for app in apps where app.impact >= EnergyMonitor.notifyThreshold {
+            // Skip apps the user opted out of ("Notify About This App" off).
+            if Preferences.isEnergyNotifyMuted(appPath: app.appPath) { continue }
             if !energyNotified.contains(app.name) {
                 energyNotified.insert(app.name)
                 send(id: "energy-\(app.name)",
