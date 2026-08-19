@@ -434,7 +434,7 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         // Rebuild fresh each time so it reflects current prefs and the current
         // device list.
         settingsWindow?.close()
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 560),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 500),
                               styleMask: [.titled, .closable, .miniaturizable],
                               backing: .buffered, defer: false)
         window.title = "PowerDeck Settings"
@@ -460,22 +460,28 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 18, left: 22, bottom: 18, right: 22)
+        stack.edgeInsets = NSEdgeInsets(top: 20, left: 24, bottom: 20, right: 24)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        func header(_ text: String) {
+        func section(_ title: String) {
             if let last = stack.arrangedSubviews.last {
-                stack.setCustomSpacing(18, after: last)
+                stack.setCustomSpacing(24, after: last)
             }
-            let label = NSTextField(labelWithString: text.uppercased())
-            label.font = .systemFont(ofSize: 10, weight: .semibold)
+            let label = NSTextField(labelWithString: title)
+            label.font = .systemFont(ofSize: 13, weight: .semibold)
+            stack.addArrangedSubview(label)
+            stack.setCustomSpacing(10, after: label)
+        }
+        func caption(_ text: String) {
+            let label = NSTextField(labelWithString: text)
+            label.font = .systemFont(ofSize: 11)
             label.textColor = .secondaryLabelColor
             stack.addArrangedSubview(label)
         }
 
         // Notifications
-        header("Notifications")
-        stack.addArrangedSubview(settingsCheckbox("Low battery notifications",
+        section("Notifications")
+        stack.addArrangedSubview(settingsCheckbox("Low battery",
             isOn: Preferences.notificationsEnabled, action: #selector(toggleNotifications)))
         let threshRow = NSStackView()
         threshRow.orientation = .horizontal
@@ -491,30 +497,17 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         popup.action = #selector(thresholdChanged(_:))
         threshRow.addArrangedSubview(popup)
         stack.addArrangedSubview(threshRow)
-        stack.addArrangedSubview(settingsCheckbox("Full charge notifications",
+        stack.addArrangedSubview(settingsCheckbox("Full charge",
             isOn: Preferences.notifyWhenFullyCharged, action: #selector(toggleFullCharge)))
-
-        // Energy
-        header("Energy")
-        stack.addArrangedSubview(settingsCheckbox("Show energy-intensive apps",
-            isOn: Preferences.showEnergyApps, action: #selector(toggleShowEnergy)))
-        stack.addArrangedSubview(settingsCheckbox("Notify about energy-intensive apps",
+        stack.addArrangedSubview(settingsCheckbox("Energy-intensive apps",
             isOn: Preferences.notifyEnergyApps, action: #selector(toggleNotifyEnergy)))
 
-        // Devices
-        header("Devices")
-        stack.addArrangedSubview(settingsCheckbox("Hide devices without a battery level",
-            isOn: Preferences.hideUnreportedDevices, action: #selector(toggleHideUnreported),
-            tooltip: "Hides devices shown as \"—\" — e.g. an iPad or Watch that macOS "
-                   + "isn't currently reporting a level for."))
         let known = Preferences.knownDevices
             .sorted { $0.value.localizedCaseInsensitiveCompare($1.value) == .orderedAscending }
         if !known.isEmpty {
-            let sub = NSTextField(labelWithString: "Notify me about")
-            sub.font = .systemFont(ofSize: 11)
-            sub.textColor = .secondaryLabelColor
-            stack.setCustomSpacing(10, after: stack.arrangedSubviews.last!)
-            stack.addArrangedSubview(sub)
+            stack.setCustomSpacing(12, after: stack.arrangedSubviews.last!)
+            caption("Per device")
+            stack.setCustomSpacing(6, after: stack.arrangedSubviews.last!)
             let muted = Preferences.mutedDeviceIDs
             for (id, name) in known {
                 let box = NSButton(checkboxWithTitle: name, target: self,
@@ -523,40 +516,51 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
                 box.identifier = NSUserInterfaceItemIdentifier(id)
                 box.translatesAutoresizingMaskIntoConstraints = false
                 stack.addArrangedSubview(box)
+                stack.setCustomSpacing(4, after: box)
             }
         }
 
+        // Menu
+        section("Menu")
+        stack.addArrangedSubview(settingsCheckbox("Show energy-intensive apps",
+            isOn: Preferences.showEnergyApps, action: #selector(toggleShowEnergy)))
+        stack.addArrangedSubview(settingsCheckbox("Hide devices without a battery level",
+            isOn: Preferences.hideUnreportedDevices, action: #selector(toggleHideUnreported),
+            tooltip: "Hides devices shown as \"—\" — e.g. an iPad or Watch macOS isn't reporting."))
+
         // AirPods
-        header("AirPods")
-        stack.addArrangedSubview(settingsCheckbox("AirPods pop-up when case opens",
-            isOn: Preferences.airPodsPopupEnabled, action: #selector(toggleAirPodsPopup),
-            tooltip: "Uses always-on Bluetooth scanning."))
-        stack.addArrangedSubview(settingsCheckbox("Show AirPods battery in menu",
-            isOn: Preferences.airPodsMenuBatteryEnabled, action: #selector(toggleAirPodsMenuBattery),
-            tooltip: "Uses always-on Bluetooth scanning."))
+        section("AirPods")
+        stack.addArrangedSubview(settingsCheckbox("Pop-up when case opens",
+            isOn: Preferences.airPodsPopupEnabled, action: #selector(toggleAirPodsPopup)))
+        stack.addArrangedSubview(settingsCheckbox("Show battery in menu",
+            isOn: Preferences.airPodsMenuBatteryEnabled, action: #selector(toggleAirPodsMenuBattery)))
+        caption("Uses always-on Bluetooth scanning.")
 
         // General
-        header("General")
+        section("General")
         if Bundle.main.bundleIdentifier != nil {
             stack.addArrangedSubview(settingsCheckbox("Launch at login",
                 isOn: SMAppService.mainApp.status == .enabled, action: #selector(toggleLaunchAtLogin)))
         }
+        let buttonRow = NSStackView()
+        buttonRow.orientation = .horizontal
+        buttonRow.spacing = 10
         let refresh = NSButton(title: "Refresh Now", target: self, action: #selector(refreshNow))
         refresh.bezelStyle = .rounded
-        refresh.translatesAutoresizingMaskIntoConstraints = false
-        stack.addArrangedSubview(refresh)
+        buttonRow.addArrangedSubview(refresh)
         if !IOSDevices.toolsAvailable {
-            let hint = NSButton(title: "Get Precise iPhone & iPad Battery %…",
+            let hint = NSButton(title: "Precise iPhone Battery…",
                                 target: self, action: #selector(showIOSHelp))
             hint.bezelStyle = .rounded
-            hint.translatesAutoresizingMaskIntoConstraints = false
-            stack.addArrangedSubview(hint)
+            buttonRow.addArrangedSubview(hint)
         }
+        stack.setCustomSpacing(14, after: stack.arrangedSubviews.last!)
+        stack.addArrangedSubview(buttonRow)
 
         let credit = NSTextField(labelWithString: "Vibe coded by AkhilTChandran with Claude")
         credit.font = .systemFont(ofSize: 10)
         credit.textColor = .tertiaryLabelColor
-        stack.setCustomSpacing(18, after: stack.arrangedSubviews.last!)
+        stack.setCustomSpacing(22, after: stack.arrangedSubviews.last!)
         stack.addArrangedSubview(credit)
 
         let scroll = NSScrollView()
