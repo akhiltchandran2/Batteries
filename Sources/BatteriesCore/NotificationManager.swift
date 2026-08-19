@@ -21,8 +21,10 @@ final class NotificationManager: NSObject {
 
     private static let lowBatteryCategory = "LOW_BATTERY"
     private static let fullChargeCategory = "FULL_CHARGE"
+    private static let energyAppCategory = "ENERGY_APP"
     private static let snoozeAction = "SNOOZE_1H"
     private static let muteAction = "MUTE_DEVICE"
+    private static let pauseAppAction = "PAUSE_APP"
 
     func requestAuthorization() {
         guard available else { return }
@@ -33,16 +35,21 @@ final class NotificationManager: NSObject {
     }
 
     /// Lets a low-battery/full-charge notification carry a "Snooze 1h" /
-    /// "Mute this device" action, instead of doing nothing when clicked.
+    /// "Mute this device" action, and an energy-app notification carry
+    /// "Pause Until Plugged In" — instead of doing nothing when clicked.
     private func registerCategories() {
         let snooze = UNNotificationAction(identifier: Self.snoozeAction, title: "Snooze 1h", options: [])
         let mute = UNNotificationAction(identifier: Self.muteAction, title: "Mute This Device",
                                         options: [.destructive])
+        let pause = UNNotificationAction(identifier: Self.pauseAppAction, title: "Pause Until Plugged In",
+                                         options: [.destructive])
         let low = UNNotificationCategory(identifier: Self.lowBatteryCategory,
                                          actions: [snooze, mute], intentIdentifiers: [], options: [])
         let full = UNNotificationCategory(identifier: Self.fullChargeCategory,
                                           actions: [mute], intentIdentifiers: [], options: [])
-        UNUserNotificationCenter.current().setNotificationCategories([low, full])
+        let energy = UNNotificationCategory(identifier: Self.energyAppCategory,
+                                            actions: [pause], intentIdentifiers: [], options: [])
+        UNUserNotificationCenter.current().setNotificationCategories([low, full, energy])
     }
 
     private var primed = false
@@ -82,7 +89,7 @@ final class NotificationManager: NSObject {
                              title: "\(device.name) is running low",
                              body: "Battery is at \(percent)%. Time to recharge.",
                              category: Self.lowBatteryCategory,
-                             deviceID: device.id)
+                             userInfo: ["deviceID": device.id])
                     }
                 } else if device.isCharging || percent > threshold + 10 {
                     lowNotified.remove(device.id)
@@ -99,7 +106,7 @@ final class NotificationManager: NSObject {
                              title: "\(device.name) is fully charged",
                              body: "Battery is at 100%. You can unplug it now.",
                              category: Self.fullChargeCategory,
-                             deviceID: device.id)
+                             userInfo: ["deviceID": device.id])
                     }
                 } else if percent < 95 {
                     fullNotified.remove(device.id)
@@ -122,7 +129,9 @@ final class NotificationManager: NSObject {
                 energyNotified.insert(app.name)
                 send(id: "energy-\(app.name)",
                      title: "\(app.name) is using significant energy",
-                     body: "It's a heavy battery drain right now. Quit it to save power.")
+                     body: "It's a heavy battery drain right now. Quit it to save power.",
+                     category: Self.energyAppCategory,
+                     userInfo: ["appPath": app.appPath])
             }
         }
         // Re-arm apps that have calmed below the display threshold, or dropped
@@ -131,13 +140,14 @@ final class NotificationManager: NSObject {
         energyNotified.formIntersection(stillElevated.union(hot))
     }
 
-    private func send(id: String, title: String, body: String, category: String? = nil, deviceID: String? = nil) {
+    private func send(id: String, title: String, body: String, category: String? = nil,
+                      userInfo: [String: String] = [:]) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
         if let category { content.categoryIdentifier = category }
-        if let deviceID { content.userInfo = ["deviceID": deviceID] }
+        content.userInfo = userInfo
         UNUserNotificationCenter.current().add(
             UNNotificationRequest(identifier: id, content: content, trigger: nil))
     }
@@ -156,15 +166,23 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
         defer { completionHandler() }
-        guard let deviceID = response.notification.request.content.userInfo["deviceID"] as? String else { return }
+        let userInfo = response.notification.request.content.userInfo
+
         switch response.actionIdentifier {
         case Self.snoozeAction:
+            guard let deviceID = userInfo["deviceID"] as? String else { return }
             Preferences.snooze(deviceID: deviceID, for: 3600)
             lowNotified.remove(deviceID)
         case Self.muteAction:
+            guard let deviceID = userInfo["deviceID"] as? String else { return }
             Preferences.mute(deviceID: deviceID)
             lowNotified.remove(deviceID)
             fullNotified.remove(deviceID)
+        case Self.pauseAppAction:
+            guard let appPath = userInfo["appPath"] as? String else { return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                EnergyControl.suspend(appPath: appPath)
+            }
         default:
             break
         }
