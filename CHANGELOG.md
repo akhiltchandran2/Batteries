@@ -7,6 +7,8 @@
 - Silence energy notifications per app: each energy-intensive app has a "Notify About This App" toggle, so a pro tool you knowingly run hot won't keep nagging you while you still hear about unexpected new ones.
 - Low-battery and full-charge notifications are now actionable — "Snooze 1h" and "Mute This Device" right from the notification.
 - Menu bar icon fixes: the fill now always matches the true charge level (it previously looked full while charging), and plugging or unplugging the charger updates the icon instantly instead of after a delay.
+- App Settings is now its own window (Cmd+,) instead of a submenu, laid out as a proper form so it's easy to scan.
+- New "Hide devices without a battery level" setting, for an iPad or Watch that's paired but never reports a percent.
 - Fresh app icon.
 
 ## 1.3
