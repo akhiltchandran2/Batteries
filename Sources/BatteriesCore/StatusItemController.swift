@@ -432,21 +432,21 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func openSettings() {
         // Rebuild fresh each time so it reflects current prefs and the current
-        // device list.
+        // device list. The window is sized to the content so there's no dead
+        // space on the right.
         settingsWindow?.close()
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 500),
+        let (content, size) = buildSettingsContent()
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: [.titled, .closable, .miniaturizable],
                               backing: .buffered, defer: false)
         window.title = "PowerDeck Settings"
         window.isReleasedWhenClosed = false
-        window.contentView = buildSettingsContent()
+        window.contentView = content
         window.center()
         settingsWindow = window
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
-
-    // MARK: Native-style grouped controls
 
     private func settingsSwitch(isOn: Bool, action: Selector) -> NSSwitch {
         let toggle = NSSwitch()
@@ -458,104 +458,58 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         return toggle
     }
 
-    /// A single row inside a card: a title on the left, a control on the right.
-    private func settingsRow(_ title: String, _ control: NSView, tooltip: String? = nil) -> NSView {
-        let label = NSTextField(labelWithString: title)
-        label.font = .systemFont(ofSize: 13)
-        label.lineBreakMode = .byTruncatingTail
-        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        control.setContentHuggingPriority(.required, for: .horizontal)
-
-        let row = NSStackView(views: [label, control])
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.distribution = .fill
-        row.spacing = 8
-        row.edgeInsets = NSEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
-        row.translatesAutoresizingMaskIntoConstraints = false
-        row.toolTip = tooltip
-        return row
-    }
-
-    /// A rounded "card" of rows with hairline separators, like System Settings.
-    private func settingsCard(_ rows: [NSView]) -> NSView {
-        let card = FlippedStackView()
-        card.orientation = .vertical
-        card.spacing = 0
-        card.alignment = .leading
-        card.translatesAutoresizingMaskIntoConstraints = false
-        card.wantsLayer = true
-        card.layer?.cornerRadius = 10
-        card.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-
-        for (index, row) in rows.enumerated() {
-            card.addArrangedSubview(row)
-            row.leadingAnchor.constraint(equalTo: card.leadingAnchor).isActive = true
-            row.trailingAnchor.constraint(equalTo: card.trailingAnchor).isActive = true
-            if index < rows.count - 1 {
-                let separator = NSBox()
-                separator.boxType = .separator
-                separator.translatesAutoresizingMaskIntoConstraints = false
-                card.addArrangedSubview(separator)
-                separator.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 16).isActive = true
-                separator.trailingAnchor.constraint(equalTo: card.trailingAnchor).isActive = true
-            }
-        }
-        return card
-    }
-
-    private func buildSettingsContent() -> NSView {
+    /// A native two-column form (right-aligned labels : left-aligned controls),
+    /// grouped by section headers and separators — like a standard macOS
+    /// preferences pane. Returns the view and the size the window should be.
+    private func buildSettingsContent() -> (NSView, NSSize) {
         let page = FlippedStackView()
         page.orientation = .vertical
         page.alignment = .leading
-        page.spacing = 6
-        page.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 22, right: 0)
+        page.spacing = 8
+        page.edgeInsets = NSEdgeInsets(top: 20, left: 22, bottom: 20, right: 22)
         page.translatesAutoresizingMaskIntoConstraints = false
 
-        // A label inset to line up with the row content inside the cards.
-        func insetLabel(_ text: String, size: CGFloat, weight: NSFont.Weight, color: NSColor) -> NSView {
-            let label = NSTextField(labelWithString: text)
-            label.font = .systemFont(ofSize: size, weight: weight)
-            label.textColor = color
-            label.translatesAutoresizingMaskIntoConstraints = false
-            let box = NSView()
-            box.translatesAutoresizingMaskIntoConstraints = false
-            box.addSubview(label)
-            NSLayoutConstraint.activate([
-                label.leadingAnchor.constraint(equalTo: box.leadingAnchor, constant: 16),
-                label.topAnchor.constraint(equalTo: box.topAnchor),
-                label.bottomAnchor.constraint(equalTo: box.bottomAnchor),
-                label.trailingAnchor.constraint(lessThanOrEqualTo: box.trailingAnchor),
-            ])
-            return box
-        }
-        // Pins a page child to the full content width. Must be called only
-        // after the child has been added to `page` (they need a common ancestor).
-        func pinFullWidth(_ view: NSView) {
-            view.widthAnchor.constraint(equalTo: page.widthAnchor).isActive = true
-        }
+        // Every setting label is right-aligned to one shared width so the
+        // controls line up in a single column (a native preferences form).
+        var settingLabels: [NSTextField] = []
+        var fullWidthViews: [NSView] = []
 
-        func group(_ title: String, _ rows: [NSView]) {
-            if let last = page.arrangedSubviews.last {
-                page.setCustomSpacing(18, after: last)
-            }
-            let header = insetLabel(title, size: 12, weight: .semibold, color: .secondaryLabelColor)
-            page.addArrangedSubview(header)
-            pinFullWidth(header)
-            page.setCustomSpacing(6, after: header)
-            let card = settingsCard(rows)
-            page.addArrangedSubview(card)
-            pinFullWidth(card)
+        func settingRow(_ title: String, _ control: NSView, tooltip: String? = nil) {
+            let label = NSTextField(labelWithString: title)
+            label.font = .systemFont(ofSize: 13)
+            label.alignment = .right
+            label.translatesAutoresizingMaskIntoConstraints = false
+            settingLabels.append(label)
+            control.setContentHuggingPriority(.required, for: .horizontal)
+            let row = NSStackView(views: [label, control])
+            row.orientation = .horizontal
+            row.alignment = .centerY
+            row.spacing = 12
+            row.translatesAutoresizingMaskIntoConstraints = false
+            row.toolTip = tooltip
+            page.addArrangedSubview(row)
         }
-        func caption(_ text: String) {
-            let label = insetLabel(text, size: 11, weight: .regular, color: .secondaryLabelColor)
-            page.setCustomSpacing(6, after: page.arrangedSubviews.last!)
+        func header(_ title: String, first: Bool) {
+            if !first {
+                if let last = page.arrangedSubviews.last { page.setCustomSpacing(12, after: last) }
+                let separator = NSBox()
+                separator.boxType = .separator
+                separator.translatesAutoresizingMaskIntoConstraints = false
+                page.addArrangedSubview(separator)
+                fullWidthViews.append(separator)
+                page.setCustomSpacing(12, after: separator)
+            }
+            let label = NSTextField(labelWithString: title)
+            label.font = .systemFont(ofSize: 12, weight: .semibold)
+            label.textColor = .secondaryLabelColor
             page.addArrangedSubview(label)
-            pinFullWidth(label)
+            page.setCustomSpacing(8, after: label)
         }
 
         // Notifications
+        header("Notifications", first: true)
+        settingRow("Low battery", settingsSwitch(isOn: Preferences.notificationsEnabled,
+                                                 action: #selector(toggleNotifications)))
         let threshold = NSPopUpButton()
         for value in Preferences.thresholdChoices {
             threshold.addItem(withTitle: "\(value)%")
@@ -564,86 +518,92 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         threshold.selectItem(withTitle: "\(Preferences.lowBatteryThreshold)%")
         threshold.target = self
         threshold.action = #selector(thresholdChanged(_:))
-        group("Notifications", [
-            settingsRow("Low battery", settingsSwitch(isOn: Preferences.notificationsEnabled,
-                                                      action: #selector(toggleNotifications))),
-            settingsRow("Notify below", threshold),
-            settingsRow("Full charge", settingsSwitch(isOn: Preferences.notifyWhenFullyCharged,
-                                                      action: #selector(toggleFullCharge))),
-            settingsRow("Energy-intensive apps", settingsSwitch(isOn: Preferences.notifyEnergyApps,
-                                                                action: #selector(toggleNotifyEnergy))),
-        ])
+        settingRow("Notify below", threshold)
+        settingRow("Full charge", settingsSwitch(isOn: Preferences.notifyWhenFullyCharged,
+                                                 action: #selector(toggleFullCharge)))
+        settingRow("Energy-intensive apps", settingsSwitch(isOn: Preferences.notifyEnergyApps,
+                                                           action: #selector(toggleNotifyEnergy)))
 
-        // Per-device notifications (deduplicated by name).
+        // Per-device (deduplicated by name)
         let names = Set(Preferences.knownDevices.values)
             .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
         if !names.isEmpty {
+            header("Notify Me About", first: false)
             let muted = Preferences.mutedDeviceIDs
-            let rows: [NSView] = names.map { name in
+            for name in names {
                 let ids = Preferences.knownDevices.filter { $0.value == name }.map(\.key)
                 let anyOn = ids.contains { !muted.contains($0) }
                 let toggle = settingsSwitch(isOn: anyOn, action: #selector(toggleDeviceMuteByName(_:)))
                 toggle.identifier = NSUserInterfaceItemIdentifier(name)
-                return settingsRow(name, toggle)
+                settingRow(name, toggle)
             }
-            group("Notify Me About", rows)
         }
 
         // Menu
-        group("Menu", [
-            settingsRow("Show energy-intensive apps",
-                        settingsSwitch(isOn: Preferences.showEnergyApps, action: #selector(toggleShowEnergy))),
-            settingsRow("Hide devices without a battery level",
-                        settingsSwitch(isOn: Preferences.hideUnreportedDevices,
-                                       action: #selector(toggleHideUnreported)),
-                        tooltip: "Hides devices shown as \"—\" — e.g. an iPad or Watch macOS isn't reporting."),
-        ])
+        header("Menu", first: false)
+        settingRow("Show energy-intensive apps",
+                   settingsSwitch(isOn: Preferences.showEnergyApps, action: #selector(toggleShowEnergy)))
+        settingRow("Hide devices without a battery level",
+                   settingsSwitch(isOn: Preferences.hideUnreportedDevices,
+                                  action: #selector(toggleHideUnreported)),
+                   tooltip: "Hides devices shown as \"—\" — e.g. an iPad or Watch macOS isn't reporting.")
 
         // AirPods
-        group("AirPods", [
-            settingsRow("Pop-up when case opens",
-                        settingsSwitch(isOn: Preferences.airPodsPopupEnabled, action: #selector(toggleAirPodsPopup))),
-            settingsRow("Show battery in menu",
-                        settingsSwitch(isOn: Preferences.airPodsMenuBatteryEnabled,
-                                       action: #selector(toggleAirPodsMenuBattery))),
-        ])
-        caption("AirPods use always-on Bluetooth scanning.")
+        header("AirPods", first: false)
+        settingRow("Pop-up when case opens",
+                   settingsSwitch(isOn: Preferences.airPodsPopupEnabled, action: #selector(toggleAirPodsPopup)))
+        settingRow("Show battery in menu",
+                   settingsSwitch(isOn: Preferences.airPodsMenuBatteryEnabled,
+                                  action: #selector(toggleAirPodsMenuBattery)))
 
         // General
-        var generalRows: [NSView] = []
+        header("General", first: false)
         if Bundle.main.bundleIdentifier != nil {
-            generalRows.append(settingsRow("Launch at login",
-                settingsSwitch(isOn: SMAppService.mainApp.status == .enabled,
-                               action: #selector(toggleLaunchAtLogin))))
+            settingRow("Launch at login",
+                       settingsSwitch(isOn: SMAppService.mainApp.status == .enabled,
+                                      action: #selector(toggleLaunchAtLogin)))
         }
         let refresh = NSButton(title: "Refresh Now", target: self, action: #selector(refreshNow))
         refresh.bezelStyle = .rounded
-        generalRows.append(settingsRow("Battery data", refresh))
+        settingRow("Battery data", refresh)
         if !IOSDevices.toolsAvailable {
-            let hint = NSButton(title: "Set Up…", target: self, action: #selector(showIOSHelp))
+            let hint = NSButton(title: "Set Up\u{2026}", target: self, action: #selector(showIOSHelp))
             hint.bezelStyle = .rounded
-            generalRows.append(settingsRow("Precise iPhone & iPad battery", hint))
+            settingRow("Precise iPhone & iPad battery", hint)
         }
-        group("General", generalRows)
 
-        let credit = insetLabel("Vibe coded by AkhilTChandran with Claude",
-                                size: 10, weight: .regular, color: .tertiaryLabelColor)
-        page.setCustomSpacing(22, after: page.arrangedSubviews.last!)
-        page.addArrangedSubview(credit)
-        pinFullWidth(credit)
+        // Pin every label to the widest label's width so controls align.
+        let labelWidth = settingLabels.map { $0.fittingSize.width }.max() ?? 120
+        for label in settingLabels {
+            label.widthAnchor.constraint(equalToConstant: labelWidth).isActive = true
+        }
+        // Full-width separators span the page content width.
+        for view in fullWidthViews {
+            view.widthAnchor.constraint(equalTo: page.widthAnchor,
+                                        constant: -(page.edgeInsets.left + page.edgeInsets.right)).isActive = true
+        }
+
+        page.layoutSubtreeIfNeeded()
+        let size = page.fittingSize
 
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
+        scroll.scrollerStyle = .overlay
         scroll.drawsBackground = false
-        scroll.documentView = page
+        let doc = NSView()
+        doc.translatesAutoresizingMaskIntoConstraints = false
+        doc.addSubview(page)
         NSLayoutConstraint.activate([
-            page.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor, constant: 20),
-            page.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor, constant: -20),
-            page.topAnchor.constraint(equalTo: scroll.contentView.topAnchor, constant: 20),
-            page.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor, constant: -40),
+            page.leadingAnchor.constraint(equalTo: doc.leadingAnchor),
+            page.topAnchor.constraint(equalTo: doc.topAnchor),
+            doc.trailingAnchor.constraint(equalTo: page.trailingAnchor),
+            doc.bottomAnchor.constraint(equalTo: page.bottomAnchor),
         ])
-        return scroll
+        scroll.documentView = doc
+
+        let contentSize = NSSize(width: size.width, height: min(size.height, 560))
+        return (scroll, contentSize)
     }
 
     @objc private func thresholdChanged(_ sender: NSPopUpButton) {
