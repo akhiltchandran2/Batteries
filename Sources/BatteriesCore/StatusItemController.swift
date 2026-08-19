@@ -450,6 +450,7 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
 
     private func settingsSwitch(isOn: Bool, action: Selector) -> NSSwitch {
         let toggle = NSSwitch()
+        toggle.controlSize = .mini
         toggle.state = isOn ? .on : .off
         toggle.target = self
         toggle.action = action
@@ -471,7 +472,7 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         row.alignment = .centerY
         row.distribution = .fill
         row.spacing = 8
-        row.edgeInsets = NSEdgeInsets(top: 9, left: 14, bottom: 9, right: 14)
+        row.edgeInsets = NSEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
         row.translatesAutoresizingMaskIntoConstraints = false
         row.toolTip = tooltip
         return row
@@ -497,7 +498,7 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
                 separator.boxType = .separator
                 separator.translatesAutoresizingMaskIntoConstraints = false
                 card.addArrangedSubview(separator)
-                separator.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14).isActive = true
+                separator.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 16).isActive = true
                 separator.trailingAnchor.constraint(equalTo: card.trailingAnchor).isActive = true
             }
         }
@@ -512,25 +513,46 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         page.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 22, right: 0)
         page.translatesAutoresizingMaskIntoConstraints = false
 
+        // A label inset to line up with the row content inside the cards.
+        func insetLabel(_ text: String, size: CGFloat, weight: NSFont.Weight, color: NSColor) -> NSView {
+            let label = NSTextField(labelWithString: text)
+            label.font = .systemFont(ofSize: size, weight: weight)
+            label.textColor = color
+            label.translatesAutoresizingMaskIntoConstraints = false
+            let box = NSView()
+            box.translatesAutoresizingMaskIntoConstraints = false
+            box.addSubview(label)
+            NSLayoutConstraint.activate([
+                label.leadingAnchor.constraint(equalTo: box.leadingAnchor, constant: 16),
+                label.topAnchor.constraint(equalTo: box.topAnchor),
+                label.bottomAnchor.constraint(equalTo: box.bottomAnchor),
+                label.trailingAnchor.constraint(lessThanOrEqualTo: box.trailingAnchor),
+            ])
+            return box
+        }
+        // Pins a page child to the full content width. Must be called only
+        // after the child has been added to `page` (they need a common ancestor).
+        func pinFullWidth(_ view: NSView) {
+            view.widthAnchor.constraint(equalTo: page.widthAnchor).isActive = true
+        }
+
         func group(_ title: String, _ rows: [NSView]) {
             if let last = page.arrangedSubviews.last {
-                page.setCustomSpacing(20, after: last)
+                page.setCustomSpacing(18, after: last)
             }
-            let header = NSTextField(labelWithString: title)
-            header.font = .systemFont(ofSize: 12, weight: .semibold)
-            header.textColor = .secondaryLabelColor
+            let header = insetLabel(title, size: 12, weight: .semibold, color: .secondaryLabelColor)
             page.addArrangedSubview(header)
+            pinFullWidth(header)
             page.setCustomSpacing(6, after: header)
             let card = settingsCard(rows)
             page.addArrangedSubview(card)
-            card.widthAnchor.constraint(equalTo: page.widthAnchor).isActive = true
+            pinFullWidth(card)
         }
         func caption(_ text: String) {
-            let label = NSTextField(labelWithString: text)
-            label.font = .systemFont(ofSize: 11)
-            label.textColor = .secondaryLabelColor
+            let label = insetLabel(text, size: 11, weight: .regular, color: .secondaryLabelColor)
             page.setCustomSpacing(6, after: page.arrangedSubviews.last!)
             page.addArrangedSubview(label)
+            pinFullWidth(label)
         }
 
         // Notifications
@@ -604,11 +626,11 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         }
         group("General", generalRows)
 
-        let credit = NSTextField(labelWithString: "Vibe coded by AkhilTChandran with Claude")
-        credit.font = .systemFont(ofSize: 10)
-        credit.textColor = .tertiaryLabelColor
+        let credit = insetLabel("Vibe coded by AkhilTChandran with Claude",
+                                size: 10, weight: .regular, color: .tertiaryLabelColor)
         page.setCustomSpacing(22, after: page.arrangedSubviews.last!)
         page.addArrangedSubview(credit)
+        pinFullWidth(credit)
 
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
