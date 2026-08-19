@@ -29,6 +29,8 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
     private var healthRow: InfoRowView?
     private var deviceRows: [String: DeviceRowSet] = [:]
     private var lastDeviceOrder: [String] = []
+    /// The standalone Settings window (replaces the old App Settings submenu).
+    private var settingsWindow: NSWindow?
     private var lowPowerItem: NSMenuItem?
     private var renderedEnergyNames: [String] = []
     /// The "Connect / Disconnect" submenu, populated lazily when opened so
@@ -169,7 +171,7 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         }
         guard currentEnergy == renderedEnergyNames else { return false }
 
-        let devices = store.devices
+        let devices = visibleDevices
         guard devices.map(\.id) == lastDeviceOrder else { return false }
         for device in devices {
             guard let rowSet = deviceRows[device.id] else { return false }
@@ -206,6 +208,13 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
             }
         }
         return true
+    }
+
+    /// Devices to show in the menu — all of them, unless the user chose to
+    /// hide ones without a battery reading (percent nil, i.e. shown as "—").
+    private var visibleDevices: [DeviceBattery] {
+        guard Preferences.hideUnreportedDevices else { return store.devices }
+        return store.devices.filter { $0.percent != nil }
     }
 
     private func rebuildMenu() {
@@ -258,10 +267,11 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // ── Connected devices ────────────────────────────────────────
-        if store.devices.isEmpty {
+        let devicesToShow = visibleDevices
+        if devicesToShow.isEmpty {
             addInfo(store.lastUpdated == nil ? "Scanning for devices…" : "No devices found")
         } else {
-            for device in store.devices {
+            for device in devicesToShow {
                 lastDeviceOrder.append(device.id)
                 let muted = device.unreachableSince != nil || device.staleSince != nil
                 let row = BatteryRowView(icon: device.kind.symbolName,
@@ -374,13 +384,19 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         sysPrefs.target = self
         menu.addItem(sysPrefs)
 
-        let appPrefs = NSMenuItem(title: "App Settings", action: nil, keyEquivalent: "")
-        appPrefs.submenu = buildPreferencesMenu()
+        let appPrefs = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        appPrefs.target = self
         menu.addItem(appPrefs)
 
         let history = NSMenuItem(title: "Battery History", action: nil, keyEquivalent: "")
         history.submenu = buildHistoryMenu()
         menu.addItem(history)
+
+        // QStore's "Check for Updates…" (if any) — now a top-level item, since
+        // App Settings is a window rather than a submenu.
+        for item in extraSettingsItems {
+            menu.addItem(item)
+        }
 
         let quit = NSMenuItem(title: "Quit PowerDeck", action: #selector(NSApplication.terminate(_:)),
                               keyEquivalent: "q")
@@ -412,126 +428,164 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         return historyMenu
     }
 
-    private func buildPreferencesMenu() -> NSMenu {
-        let prefsMenu = NSMenu()
+    // MARK: - Settings window
 
-        let notifyToggle = NSMenuItem(title: "Low Battery Notifications",
-                                      action: #selector(toggleNotifications), keyEquivalent: "")
-        notifyToggle.target = self
-        notifyToggle.state = Preferences.notificationsEnabled ? .on : .off
-        prefsMenu.addItem(notifyToggle)
+    @objc private func openSettings() {
+        // Rebuild fresh each time so it reflects current prefs and the current
+        // device list.
+        settingsWindow?.close()
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 560),
+                              styleMask: [.titled, .closable, .miniaturizable],
+                              backing: .buffered, defer: false)
+        window.title = "PowerDeck Settings"
+        window.isReleasedWhenClosed = false
+        window.contentView = buildSettingsContent()
+        window.center()
+        settingsWindow = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
 
-        let thresholdItem = NSMenuItem(title: "Notify Below", action: nil, keyEquivalent: "")
-        let thresholdMenu = NSMenu()
-        for value in Preferences.thresholdChoices {
-            let choice = NSMenuItem(title: "\(value)%", action: #selector(setThreshold(_:)), keyEquivalent: "")
-            choice.target = self
-            choice.tag = value
-            choice.state = (Preferences.lowBatteryThreshold == value) ? .on : .off
-            thresholdMenu.addItem(choice)
+    private func settingsCheckbox(_ title: String, isOn: Bool, action: Selector,
+                                  tooltip: String? = nil) -> NSButton {
+        let box = NSButton(checkboxWithTitle: title, target: self, action: action)
+        box.state = isOn ? .on : .off
+        box.toolTip = tooltip
+        box.translatesAutoresizingMaskIntoConstraints = false
+        return box
+    }
+
+    private func buildSettingsContent() -> NSView {
+        let stack = FlippedStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 8
+        stack.edgeInsets = NSEdgeInsets(top: 18, left: 22, bottom: 18, right: 22)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        func header(_ text: String) {
+            if let last = stack.arrangedSubviews.last {
+                stack.setCustomSpacing(18, after: last)
+            }
+            let label = NSTextField(labelWithString: text.uppercased())
+            label.font = .systemFont(ofSize: 10, weight: .semibold)
+            label.textColor = .secondaryLabelColor
+            stack.addArrangedSubview(label)
         }
-        thresholdItem.submenu = thresholdMenu
-        prefsMenu.addItem(thresholdItem)
 
-        let fullToggle = NSMenuItem(title: "Full Charge Notifications",
-                                    action: #selector(toggleFullCharge), keyEquivalent: "")
-        fullToggle.target = self
-        fullToggle.state = Preferences.notifyWhenFullyCharged ? .on : .off
-        prefsMenu.addItem(fullToggle)
+        // Notifications
+        header("Notifications")
+        stack.addArrangedSubview(settingsCheckbox("Low battery notifications",
+            isOn: Preferences.notificationsEnabled, action: #selector(toggleNotifications)))
+        let threshRow = NSStackView()
+        threshRow.orientation = .horizontal
+        threshRow.spacing = 8
+        threshRow.addArrangedSubview(NSTextField(labelWithString: "Notify below"))
+        let popup = NSPopUpButton()
+        for value in Preferences.thresholdChoices {
+            popup.addItem(withTitle: "\(value)%")
+            popup.lastItem?.tag = value
+        }
+        popup.selectItem(withTitle: "\(Preferences.lowBatteryThreshold)%")
+        popup.target = self
+        popup.action = #selector(thresholdChanged(_:))
+        threshRow.addArrangedSubview(popup)
+        stack.addArrangedSubview(threshRow)
+        stack.addArrangedSubview(settingsCheckbox("Full charge notifications",
+            isOn: Preferences.notifyWhenFullyCharged, action: #selector(toggleFullCharge)))
 
-        // Per-device notification toggles
-        let devicesItem = NSMenuItem(title: "Notifications For", action: nil, keyEquivalent: "")
-        let devicesMenu = NSMenu()
+        // Energy
+        header("Energy")
+        stack.addArrangedSubview(settingsCheckbox("Show energy-intensive apps",
+            isOn: Preferences.showEnergyApps, action: #selector(toggleShowEnergy)))
+        stack.addArrangedSubview(settingsCheckbox("Notify about energy-intensive apps",
+            isOn: Preferences.notifyEnergyApps, action: #selector(toggleNotifyEnergy)))
+
+        // Devices
+        header("Devices")
+        stack.addArrangedSubview(settingsCheckbox("Hide devices without a battery level",
+            isOn: Preferences.hideUnreportedDevices, action: #selector(toggleHideUnreported),
+            tooltip: "Hides devices shown as \"—\" — e.g. an iPad or Watch that macOS "
+                   + "isn't currently reporting a level for."))
         let known = Preferences.knownDevices
             .sorted { $0.value.localizedCaseInsensitiveCompare($1.value) == .orderedAscending }
-        if known.isEmpty {
-            let empty = NSMenuItem(title: "No devices seen yet", action: nil, keyEquivalent: "")
-            empty.isEnabled = false
-            devicesMenu.addItem(empty)
-        } else {
+        if !known.isEmpty {
+            let sub = NSTextField(labelWithString: "Notify me about")
+            sub.font = .systemFont(ofSize: 11)
+            sub.textColor = .secondaryLabelColor
+            stack.setCustomSpacing(10, after: stack.arrangedSubviews.last!)
+            stack.addArrangedSubview(sub)
             let muted = Preferences.mutedDeviceIDs
             for (id, name) in known {
-                let item = NSMenuItem(title: name, action: #selector(toggleDeviceMute(_:)),
-                                      keyEquivalent: "")
-                item.target = self
-                item.representedObject = id
-                item.state = muted.contains(id) ? .off : .on
-                devicesMenu.addItem(item)
+                let box = NSButton(checkboxWithTitle: name, target: self,
+                                   action: #selector(toggleDeviceMuteButton(_:)))
+                box.state = muted.contains(id) ? .off : .on
+                box.identifier = NSUserInterfaceItemIdentifier(id)
+                box.translatesAutoresizingMaskIntoConstraints = false
+                stack.addArrangedSubview(box)
             }
         }
-        devicesItem.submenu = devicesMenu
-        prefsMenu.addItem(devicesItem)
 
-        prefsMenu.addItem(.separator())
+        // AirPods
+        header("AirPods")
+        stack.addArrangedSubview(settingsCheckbox("AirPods pop-up when case opens",
+            isOn: Preferences.airPodsPopupEnabled, action: #selector(toggleAirPodsPopup),
+            tooltip: "Uses always-on Bluetooth scanning."))
+        stack.addArrangedSubview(settingsCheckbox("Show AirPods battery in menu",
+            isOn: Preferences.airPodsMenuBatteryEnabled, action: #selector(toggleAirPodsMenuBattery),
+            tooltip: "Uses always-on Bluetooth scanning."))
 
-        let showEnergy = NSMenuItem(title: "Show Energy-Intensive Apps",
-                                    action: #selector(toggleShowEnergy), keyEquivalent: "")
-        showEnergy.target = self
-        showEnergy.state = Preferences.showEnergyApps ? .on : .off
-        prefsMenu.addItem(showEnergy)
-
-        let notifyEnergy = NSMenuItem(title: "Notify About Energy-Intensive Apps",
-                                      action: #selector(toggleNotifyEnergy), keyEquivalent: "")
-        notifyEnergy.target = self
-        notifyEnergy.state = Preferences.notifyEnergyApps ? .on : .off
-        // Notifying is only meaningful if we're scanning at all.
-        notifyEnergy.isEnabled = Preferences.showEnergyApps
-        prefsMenu.addItem(notifyEnergy)
-
-        prefsMenu.addItem(.separator())
-
-        let airpods = NSMenuItem(title: "AirPods Pop-up When Case Opens",
-                                 action: #selector(toggleAirPodsPopup), keyEquivalent: "")
-        airpods.target = self
-        airpods.state = Preferences.airPodsPopupEnabled ? .on : .off
-        airpods.toolTip = "Show a battery card when you open your AirPods case nearby "
-                        + "(uses always-on Bluetooth scanning)"
-        prefsMenu.addItem(airpods)
-
-        let airpodsMenuBattery = NSMenuItem(title: "Show AirPods Battery in Menu",
-                                            action: #selector(toggleAirPodsMenuBattery), keyEquivalent: "")
-        airpodsMenuBattery.target = self
-        airpodsMenuBattery.state = Preferences.airPodsMenuBatteryEnabled ? .on : .off
-        airpodsMenuBattery.toolTip = "Keep AirPods battery visible in the menu the moment the case "
-                                   + "opens nearby, even before they're connected (uses always-on "
-                                   + "Bluetooth scanning)"
-        prefsMenu.addItem(airpodsMenuBattery)
-
-        prefsMenu.addItem(.separator())
-
+        // General
+        header("General")
         if Bundle.main.bundleIdentifier != nil {
-            let loginToggle = NSMenuItem(title: "Launch at Login",
-                                         action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
-            loginToggle.target = self
-            loginToggle.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
-            prefsMenu.addItem(loginToggle)
+            stack.addArrangedSubview(settingsCheckbox("Launch at login",
+                isOn: SMAppService.mainApp.status == .enabled, action: #selector(toggleLaunchAtLogin)))
         }
-
-        let refresh = NSMenuItem(title: "Refresh Now", action: #selector(refreshNow), keyEquivalent: "r")
-        refresh.target = self
-        prefsMenu.addItem(refresh)
-
+        let refresh = NSButton(title: "Refresh Now", target: self, action: #selector(refreshNow))
+        refresh.bezelStyle = .rounded
+        refresh.translatesAutoresizingMaskIntoConstraints = false
+        stack.addArrangedSubview(refresh)
         if !IOSDevices.toolsAvailable {
-            let hint = NSMenuItem(title: "Get Precise iPhone & iPad Battery %…",
-                                  action: #selector(showIOSHelp), keyEquivalent: "")
-            hint.target = self
-            prefsMenu.addItem(hint)
+            let hint = NSButton(title: "Get Precise iPhone & iPad Battery %…",
+                                target: self, action: #selector(showIOSHelp))
+            hint.bezelStyle = .rounded
+            hint.translatesAutoresizingMaskIntoConstraints = false
+            stack.addArrangedSubview(hint)
         }
 
-        if !extraSettingsItems.isEmpty {
-            prefsMenu.addItem(.separator())
-            for item in extraSettingsItems {
-                prefsMenu.addItem(item)
-            }
-        }
+        let credit = NSTextField(labelWithString: "Vibe coded by AkhilTChandran with Claude")
+        credit.font = .systemFont(ofSize: 10)
+        credit.textColor = .tertiaryLabelColor
+        stack.setCustomSpacing(18, after: stack.arrangedSubviews.last!)
+        stack.addArrangedSubview(credit)
 
-        prefsMenu.addItem(.separator())
-        let credit = NSMenuItem()
-        credit.view = InfoRowView(text: "Vibe coded by AkhilTChandran with Claude")
-        credit.isEnabled = false
-        prefsMenu.addItem(credit)
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.drawsBackground = false
+        scroll.documentView = stack
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+            stack.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
+        ])
+        return scroll
+    }
 
-        return prefsMenu
+    @objc private func thresholdChanged(_ sender: NSPopUpButton) {
+        Preferences.lowBatteryThreshold = sender.selectedTag()
+    }
+
+    @objc private func toggleHideUnreported() {
+        Preferences.hideUnreportedDevices.toggle()
+        refreshUI()
+    }
+
+    @objc private func toggleDeviceMuteButton(_ sender: NSButton) {
+        guard let id = sender.identifier?.rawValue else { return }
+        // Checkbox on = notify (not muted); off = muted.
+        Preferences.setMuted(deviceID: id, muted: sender.state == .off)
     }
 
     private func addRow(_ view: NSView) {
@@ -692,4 +746,9 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
             NSPasteboard.general.setString("brew install libimobiledevice", forType: .string)
         }
     }
+}
+
+/// A vertical stack whose content lays out top-down inside a scroll view.
+private final class FlippedStackView: NSStackView {
+    override var isFlipped: Bool { true }
 }

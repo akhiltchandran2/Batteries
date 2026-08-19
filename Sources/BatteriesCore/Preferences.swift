@@ -55,6 +55,14 @@ enum Preferences {
         energyNotifyMutedApps = muted
     }
 
+    /// Hide devices that don't report a battery level (shown as "—"), e.g. an
+    /// iPad or Watch that macOS Continuity isn't currently reporting. Off by
+    /// default, so nothing silently disappears unless the user opts in.
+    static var hideUnreportedDevices: Bool {
+        get { defaults.object(forKey: "hideUnreportedDevices") as? Bool ?? false }
+        set { defaults.set(newValue, forKey: "hideUnreportedDevices") }
+    }
+
     /// Show the AirPods pop-up card when the case opens nearby. On by default
     /// so it works out of the box; it can be turned off in App Settings (it
     /// uses always-on Bluetooth scanning, which has a small battery cost).
@@ -88,6 +96,12 @@ enum Preferences {
         var muted = mutedDeviceIDs
         if muted.contains(deviceID) { muted.remove(deviceID) } else { muted.insert(deviceID) }
         mutedDeviceIDs = muted
+    }
+
+    static func setMuted(deviceID: String, muted: Bool) {
+        var set = mutedDeviceIDs
+        if muted { set.insert(deviceID) } else { set.remove(deviceID) }
+        mutedDeviceIDs = set
     }
 
     /// Mutes a device outright (used by the notification's "Mute" action,
