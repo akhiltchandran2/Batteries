@@ -465,7 +465,7 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         let page = FlippedStackView()
         page.orientation = .vertical
         page.alignment = .leading
-        page.spacing = 8
+        page.spacing = 14
         page.edgeInsets = NSEdgeInsets(top: 20, left: 22, bottom: 20, right: 22)
         page.translatesAutoresizingMaskIntoConstraints = false
 
