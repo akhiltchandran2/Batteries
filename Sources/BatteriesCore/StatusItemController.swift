@@ -446,133 +446,180 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func settingsCheckbox(_ title: String, isOn: Bool, action: Selector,
-                                  tooltip: String? = nil) -> NSButton {
-        let box = NSButton(checkboxWithTitle: title, target: self, action: action)
-        box.state = isOn ? .on : .off
-        box.toolTip = tooltip
-        box.translatesAutoresizingMaskIntoConstraints = false
-        return box
+    // MARK: Native-style grouped controls
+
+    private func settingsSwitch(isOn: Bool, action: Selector) -> NSSwitch {
+        let toggle = NSSwitch()
+        toggle.state = isOn ? .on : .off
+        toggle.target = self
+        toggle.action = action
+        toggle.translatesAutoresizingMaskIntoConstraints = false
+        return toggle
+    }
+
+    /// A single row inside a card: a title on the left, a control on the right.
+    private func settingsRow(_ title: String, _ control: NSView, tooltip: String? = nil) -> NSView {
+        let label = NSTextField(labelWithString: title)
+        label.font = .systemFont(ofSize: 13)
+        label.lineBreakMode = .byTruncatingTail
+        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        control.setContentHuggingPriority(.required, for: .horizontal)
+
+        let row = NSStackView(views: [label, control])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.distribution = .fill
+        row.spacing = 8
+        row.edgeInsets = NSEdgeInsets(top: 9, left: 14, bottom: 9, right: 14)
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.toolTip = tooltip
+        return row
+    }
+
+    /// A rounded "card" of rows with hairline separators, like System Settings.
+    private func settingsCard(_ rows: [NSView]) -> NSView {
+        let card = FlippedStackView()
+        card.orientation = .vertical
+        card.spacing = 0
+        card.alignment = .leading
+        card.translatesAutoresizingMaskIntoConstraints = false
+        card.wantsLayer = true
+        card.layer?.cornerRadius = 10
+        card.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+
+        for (index, row) in rows.enumerated() {
+            card.addArrangedSubview(row)
+            row.leadingAnchor.constraint(equalTo: card.leadingAnchor).isActive = true
+            row.trailingAnchor.constraint(equalTo: card.trailingAnchor).isActive = true
+            if index < rows.count - 1 {
+                let separator = NSBox()
+                separator.boxType = .separator
+                separator.translatesAutoresizingMaskIntoConstraints = false
+                card.addArrangedSubview(separator)
+                separator.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14).isActive = true
+                separator.trailingAnchor.constraint(equalTo: card.trailingAnchor).isActive = true
+            }
+        }
+        return card
     }
 
     private func buildSettingsContent() -> NSView {
-        let stack = FlippedStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 20, left: 24, bottom: 20, right: 24)
-        stack.translatesAutoresizingMaskIntoConstraints = false
+        let page = FlippedStackView()
+        page.orientation = .vertical
+        page.alignment = .leading
+        page.spacing = 6
+        page.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 22, right: 0)
+        page.translatesAutoresizingMaskIntoConstraints = false
 
-        func section(_ title: String) {
-            if let last = stack.arrangedSubviews.last {
-                stack.setCustomSpacing(24, after: last)
+        func group(_ title: String, _ rows: [NSView]) {
+            if let last = page.arrangedSubviews.last {
+                page.setCustomSpacing(20, after: last)
             }
-            let label = NSTextField(labelWithString: title)
-            label.font = .systemFont(ofSize: 13, weight: .semibold)
-            stack.addArrangedSubview(label)
-            stack.setCustomSpacing(10, after: label)
+            let header = NSTextField(labelWithString: title)
+            header.font = .systemFont(ofSize: 12, weight: .semibold)
+            header.textColor = .secondaryLabelColor
+            page.addArrangedSubview(header)
+            page.setCustomSpacing(6, after: header)
+            let card = settingsCard(rows)
+            page.addArrangedSubview(card)
+            card.widthAnchor.constraint(equalTo: page.widthAnchor).isActive = true
         }
         func caption(_ text: String) {
             let label = NSTextField(labelWithString: text)
             label.font = .systemFont(ofSize: 11)
             label.textColor = .secondaryLabelColor
-            stack.addArrangedSubview(label)
+            page.setCustomSpacing(6, after: page.arrangedSubviews.last!)
+            page.addArrangedSubview(label)
         }
 
         // Notifications
-        section("Notifications")
-        stack.addArrangedSubview(settingsCheckbox("Low battery",
-            isOn: Preferences.notificationsEnabled, action: #selector(toggleNotifications)))
-        let threshRow = NSStackView()
-        threshRow.orientation = .horizontal
-        threshRow.spacing = 8
-        threshRow.addArrangedSubview(NSTextField(labelWithString: "Notify below"))
-        let popup = NSPopUpButton()
+        let threshold = NSPopUpButton()
         for value in Preferences.thresholdChoices {
-            popup.addItem(withTitle: "\(value)%")
-            popup.lastItem?.tag = value
+            threshold.addItem(withTitle: "\(value)%")
+            threshold.lastItem?.tag = value
         }
-        popup.selectItem(withTitle: "\(Preferences.lowBatteryThreshold)%")
-        popup.target = self
-        popup.action = #selector(thresholdChanged(_:))
-        threshRow.addArrangedSubview(popup)
-        stack.addArrangedSubview(threshRow)
-        stack.addArrangedSubview(settingsCheckbox("Full charge",
-            isOn: Preferences.notifyWhenFullyCharged, action: #selector(toggleFullCharge)))
-        stack.addArrangedSubview(settingsCheckbox("Energy-intensive apps",
-            isOn: Preferences.notifyEnergyApps, action: #selector(toggleNotifyEnergy)))
+        threshold.selectItem(withTitle: "\(Preferences.lowBatteryThreshold)%")
+        threshold.target = self
+        threshold.action = #selector(thresholdChanged(_:))
+        group("Notifications", [
+            settingsRow("Low battery", settingsSwitch(isOn: Preferences.notificationsEnabled,
+                                                      action: #selector(toggleNotifications))),
+            settingsRow("Notify below", threshold),
+            settingsRow("Full charge", settingsSwitch(isOn: Preferences.notifyWhenFullyCharged,
+                                                      action: #selector(toggleFullCharge))),
+            settingsRow("Energy-intensive apps", settingsSwitch(isOn: Preferences.notifyEnergyApps,
+                                                                action: #selector(toggleNotifyEnergy))),
+        ])
 
-        let known = Preferences.knownDevices
-            .sorted { $0.value.localizedCaseInsensitiveCompare($1.value) == .orderedAscending }
-        if !known.isEmpty {
-            stack.setCustomSpacing(12, after: stack.arrangedSubviews.last!)
-            caption("Per device")
-            stack.setCustomSpacing(6, after: stack.arrangedSubviews.last!)
+        // Per-device notifications (deduplicated by name).
+        let names = Set(Preferences.knownDevices.values)
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        if !names.isEmpty {
             let muted = Preferences.mutedDeviceIDs
-            for (id, name) in known {
-                let box = NSButton(checkboxWithTitle: name, target: self,
-                                   action: #selector(toggleDeviceMuteButton(_:)))
-                box.state = muted.contains(id) ? .off : .on
-                box.identifier = NSUserInterfaceItemIdentifier(id)
-                box.translatesAutoresizingMaskIntoConstraints = false
-                stack.addArrangedSubview(box)
-                stack.setCustomSpacing(4, after: box)
+            let rows: [NSView] = names.map { name in
+                let ids = Preferences.knownDevices.filter { $0.value == name }.map(\.key)
+                let anyOn = ids.contains { !muted.contains($0) }
+                let toggle = settingsSwitch(isOn: anyOn, action: #selector(toggleDeviceMuteByName(_:)))
+                toggle.identifier = NSUserInterfaceItemIdentifier(name)
+                return settingsRow(name, toggle)
             }
+            group("Notify Me About", rows)
         }
 
         // Menu
-        section("Menu")
-        stack.addArrangedSubview(settingsCheckbox("Show energy-intensive apps",
-            isOn: Preferences.showEnergyApps, action: #selector(toggleShowEnergy)))
-        stack.addArrangedSubview(settingsCheckbox("Hide devices without a battery level",
-            isOn: Preferences.hideUnreportedDevices, action: #selector(toggleHideUnreported),
-            tooltip: "Hides devices shown as \"—\" — e.g. an iPad or Watch macOS isn't reporting."))
+        group("Menu", [
+            settingsRow("Show energy-intensive apps",
+                        settingsSwitch(isOn: Preferences.showEnergyApps, action: #selector(toggleShowEnergy))),
+            settingsRow("Hide devices without a battery level",
+                        settingsSwitch(isOn: Preferences.hideUnreportedDevices,
+                                       action: #selector(toggleHideUnreported)),
+                        tooltip: "Hides devices shown as \"—\" — e.g. an iPad or Watch macOS isn't reporting."),
+        ])
 
         // AirPods
-        section("AirPods")
-        stack.addArrangedSubview(settingsCheckbox("Pop-up when case opens",
-            isOn: Preferences.airPodsPopupEnabled, action: #selector(toggleAirPodsPopup)))
-        stack.addArrangedSubview(settingsCheckbox("Show battery in menu",
-            isOn: Preferences.airPodsMenuBatteryEnabled, action: #selector(toggleAirPodsMenuBattery)))
-        caption("Uses always-on Bluetooth scanning.")
+        group("AirPods", [
+            settingsRow("Pop-up when case opens",
+                        settingsSwitch(isOn: Preferences.airPodsPopupEnabled, action: #selector(toggleAirPodsPopup))),
+            settingsRow("Show battery in menu",
+                        settingsSwitch(isOn: Preferences.airPodsMenuBatteryEnabled,
+                                       action: #selector(toggleAirPodsMenuBattery))),
+        ])
+        caption("AirPods use always-on Bluetooth scanning.")
 
         // General
-        section("General")
+        var generalRows: [NSView] = []
         if Bundle.main.bundleIdentifier != nil {
-            stack.addArrangedSubview(settingsCheckbox("Launch at login",
-                isOn: SMAppService.mainApp.status == .enabled, action: #selector(toggleLaunchAtLogin)))
+            generalRows.append(settingsRow("Launch at login",
+                settingsSwitch(isOn: SMAppService.mainApp.status == .enabled,
+                               action: #selector(toggleLaunchAtLogin))))
         }
-        let buttonRow = NSStackView()
-        buttonRow.orientation = .horizontal
-        buttonRow.spacing = 10
         let refresh = NSButton(title: "Refresh Now", target: self, action: #selector(refreshNow))
         refresh.bezelStyle = .rounded
-        buttonRow.addArrangedSubview(refresh)
+        generalRows.append(settingsRow("Battery data", refresh))
         if !IOSDevices.toolsAvailable {
-            let hint = NSButton(title: "Precise iPhone Battery…",
-                                target: self, action: #selector(showIOSHelp))
+            let hint = NSButton(title: "Set Up…", target: self, action: #selector(showIOSHelp))
             hint.bezelStyle = .rounded
-            buttonRow.addArrangedSubview(hint)
+            generalRows.append(settingsRow("Precise iPhone & iPad battery", hint))
         }
-        stack.setCustomSpacing(14, after: stack.arrangedSubviews.last!)
-        stack.addArrangedSubview(buttonRow)
+        group("General", generalRows)
 
         let credit = NSTextField(labelWithString: "Vibe coded by AkhilTChandran with Claude")
         credit.font = .systemFont(ofSize: 10)
         credit.textColor = .tertiaryLabelColor
-        stack.setCustomSpacing(22, after: stack.arrangedSubviews.last!)
-        stack.addArrangedSubview(credit)
+        page.setCustomSpacing(22, after: page.arrangedSubviews.last!)
+        page.addArrangedSubview(credit)
 
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
         scroll.drawsBackground = false
-        scroll.documentView = stack
+        scroll.documentView = page
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
-            stack.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
+            page.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor, constant: 20),
+            page.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor, constant: -20),
+            page.topAnchor.constraint(equalTo: scroll.contentView.topAnchor, constant: 20),
+            page.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor, constant: -40),
         ])
         return scroll
     }
@@ -586,10 +633,12 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         refreshUI()
     }
 
-    @objc private func toggleDeviceMuteButton(_ sender: NSButton) {
-        guard let id = sender.identifier?.rawValue else { return }
-        // Checkbox on = notify (not muted); off = muted.
-        Preferences.setMuted(deviceID: id, muted: sender.state == .off)
+    @objc private func toggleDeviceMuteByName(_ sender: NSSwitch) {
+        guard let name = sender.identifier?.rawValue else { return }
+        // Switch on = notify; off = muted. Applies to every device with this
+        // name (the same AirPods/iPhone can be known under more than one id).
+        let ids = Preferences.knownDevices.filter { $0.value == name }.map(\.key)
+        for id in ids { Preferences.setMuted(deviceID: id, muted: sender.state == .off) }
     }
 
     private func addRow(_ view: NSView) {
