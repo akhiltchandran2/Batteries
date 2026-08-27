@@ -95,7 +95,15 @@ public final class AirPodsMonitor: NSObject, CBCentralManagerDelegate {
         lastProximity = now
         let onCooldown = lastPopup.map { now.timeIntervalSince($0) < Self.popupCooldown } ?? false
 
-        if isNewBurst, RSSI.intValue >= Self.nearbyRSSI, !onCooldown {
+        // Only treat this as a genuine "case opened to connect" event when the
+        // broadcast carries the *case* battery. An open case with the pods
+        // inside reports the case level; pods that are in use (in someone's
+        // ears near the Mac) broadcast pod-only messages with no case level —
+        // those shouldn't pop the "click to connect" card. This also sidesteps
+        // AirPods' unreliable classic-Bluetooth "connected" state, which can't
+        // tell us whether the pods are in use.
+        let caseIsOpenWithPods = battery.caseLevel != nil
+        if isNewBurst, caseIsOpenWithPods, RSSI.intValue >= Self.nearbyRSSI, !onCooldown {
             lastPopup = now
             let reading = Reading(name: name, battery: battery)
             Log.devices.debug("AirPods case opened: \(name, privacy: .public) rssi=\(RSSI.intValue)")
