@@ -118,8 +118,10 @@ final class NotificationManager: NSObject {
     /// Alerts when an app crosses the high-energy bar, once per app until it
     /// drops back down (hysteresis on the display threshold), so a hog that
     /// hovers near the line doesn't notify repeatedly.
-    func checkEnergy(apps: [EnergyApp]) {
-        guard available, Preferences.notifyEnergyApps else { return }
+    func checkEnergy(apps: [EnergyApp], onBattery: Bool) {
+        // Only worth warning about a battery drain when actually on battery —
+        // on the charger a heavy app costs nothing the user cares about.
+        guard available, Preferences.notifyEnergyApps, onBattery else { return }
         let hot = Set(apps.filter { $0.impact >= EnergyMonitor.notifyThreshold }.map(\.name))
 
         for app in apps where app.impact >= EnergyMonitor.notifyThreshold {

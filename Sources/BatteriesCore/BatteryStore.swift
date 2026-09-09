@@ -158,7 +158,8 @@ final class BatteryStore {
                 // Only evaluate energy alerts on a fresh scan, not when we
                 // reused the throttled list.
                 if let freshEnergy {
-                    NotificationManager.shared.checkEnergy(apps: freshEnergy)
+                    NotificationManager.shared.checkEnergy(apps: freshEnergy,
+                                                           onBattery: mac?.powerSource == "Battery")
                 }
 
                 WidgetSnapshot(
